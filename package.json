@@ -1,0 +1,14 @@
+{
+  "name": "jyiai-app-desktop",
+  "version": "1.0.0",
+  "description": "简易AI桌面版",
+  "main": "src/main/app.js",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --inspect"
+  },
+  "devDependencies": {
+    "electron": "^33.0.2"
+  }
+}
