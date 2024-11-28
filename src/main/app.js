@@ -1,17 +1,16 @@
 const { app, BrowserWindow, ipcMain } = require('electron')
 const path = require('path')
-const { proxyConfig } = require('./config/proxy')
 const { BrowserWindowManager } = require('./windows/browser')
 
 class Application {
   constructor() {
     this.mainWindow = null
-    this.browserManager = new BrowserWindowManager(proxyConfig)
+    this.browserManager = new BrowserWindowManager()
   }
 
   initIPC() {
     ipcMain.handle('window:openUrl', async (event, options) => {
-      return await this.browserManager.createWindow(options)
+      this.browserManager.createWindow(options)
     })
   }
 
