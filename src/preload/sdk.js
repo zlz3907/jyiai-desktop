@@ -33,5 +33,33 @@ contextBridge.exposeInMainWorld('jyiaiSDK', {
       chrome: process.versions.chrome,
       node: process.versions.node
     }
+  },
+
+  // 浏览器功能 (原 browser 对象的内容)
+  browser: {
+    // 标签页操作
+    createTab: (url, options = {}) => ipcRenderer.invoke('create-tab', url, options),
+    switchTab: (tabId) => ipcRenderer.invoke('switch-tab', tabId),
+    closeTab: (tabId) => ipcRenderer.invoke('close-tab', tabId),
+    
+    // 导航操作
+    goBack: () => ipcRenderer.invoke('navigate-back'),
+    goForward: () => ipcRenderer.invoke('navigate-forward'),
+    reload: () => ipcRenderer.invoke('navigate-reload'),
+    navigateToUrl: (url) => ipcRenderer.invoke('navigate-to-url', url),
+
+    // 获取标签信息
+    getTabInfo: (tabId) => ipcRenderer.invoke('get-tab-info', tabId),
+
+    // 事件监听
+    onTabTitleUpdated: (callback) => {
+      ipcRenderer.on('tab-title-updated', (event, data) => callback(data))
+    },
+    onTabUrlUpdated: (callback) => {
+      ipcRenderer.on('tab-url-updated', (event, data) => callback(data))
+    },
+    onTabLoading: (callback) => {
+      ipcRenderer.on('tab-loading', (event, data) => callback(data))
+    }
   }
 }) 

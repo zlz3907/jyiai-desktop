@@ -11,8 +11,6 @@ class BrowserWindowManager {
   createWindow(options) {
     
     try {
-      
-      
       const windowOptions = {
         width: options.width || 1024,
         height: options.height || 768,
@@ -37,7 +35,7 @@ class BrowserWindowManager {
           proxyRules: `http://${proxyConfig.username}:${proxyConfig.password}@${proxyConfig.host}:${proxyConfig.port}`
         }
       }
-      
+      console.log('windowOptions', windowOptions)
       const win = new BrowserWindow(windowOptions)
 
       // 如果需要调试
@@ -49,7 +47,11 @@ class BrowserWindowManager {
         this.windows.delete(win)
       })
 
-      win.loadURL(options.url)
+      win.loadURL(options.url).then(() => {
+        console.log('窗口加载完成')
+      }).catch(err => {
+        console.error('窗口加载失败:', err)
+      })
   
     } catch (error) {
       console.error('创建窗口失败:', error)

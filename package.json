@@ -5,10 +5,12 @@
   "main": "src/main/app.js",
   "license": "MIT",
   "scripts": {
-    "start": "electron .",
-    "dev": "electron . --inspect"
+    "start": "cross-env NODE_ENV=development electron .",
+    "build": "cross-env NODE_ENV=production electron-builder",
+    "dev": "cross-env NODE_ENV=development electron ."
   },
   "devDependencies": {
-    "electron": "^33.2.0"
+    "electron": "^33.2.0",
+    "cross-env": "^7.0.3"
   }
 }
