@@ -1,17 +1,56 @@
 {
-  "name": "AIMetar",
-  "productName": "AIMetar",
+  "name": "jyiai-desktop",
+  "productName": "简易AI",
   "version": "1.0.0",
-  "description": "简易AI桌面版",
+  "description": "基于大语言模型的智能AI助手（AIMetaa）",
   "main": "src/main/app.js",
+  "author": {
+    "name": "中和圆创",
+    "email": "service@zhycit.com"
+  },
   "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
   "scripts": {
     "start": "cross-env NODE_ENV=development electron .",
     "build": "cross-env NODE_ENV=production electron-builder",
     "dev": "cross-env NODE_ENV=development electron ."
   },
+  "build": {
+    "appId": "com.zhycit.jyiai",
+    "productName": "AIMetar",
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": ["dmg", "zip"],
+      "darkModeSupport": true
+    },
+    "win": {
+      "target": ["nsis", "zip"],
+      "icon": "build/icon.ico"
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "category": "Development"
+    },
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "protocols": {
+      "name": "AIMetar Protocol",
+      "schemes": [
+        "aimetar"
+      ]
+    }
+  },
   "devDependencies": {
+    "cross-env": "^7.0.3",
     "electron": "^33.2.0",
-    "cross-env": "^7.0.3"
+    "electron-builder": "^25.1.8"
   }
 }
