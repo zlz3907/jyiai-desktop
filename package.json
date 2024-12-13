@@ -16,30 +16,55 @@
   "scripts": {
     "start": "cross-env NODE_ENV=development electron .",
     "build": "cross-env NODE_ENV=production electron-builder",
-    "dev": "cross-env NODE_ENV=development electron ."
+    "dev": "cross-env NODE_ENV=development electron .",
+    "publish": "electron-builder -p always",
+    "release": "electron-builder --mac --win --linux -p always"
   },
   "build": {
     "appId": "com.zhycit.jyiai",
     "productName": "AIMetar",
+    "publish": {
+      "provider": "github",
+      "owner": "zhycit",
+      "repo": "jyiai-desktop"
+    },
     "mac": {
       "category": "public.app-category.productivity",
-      "target": ["dmg", "zip"],
-      "darkModeSupport": true
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "darkModeSupport": true,
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist"
     },
     "win": {
-      "target": ["nsis", "zip"],
-      "icon": "build/icon.ico"
+      "target": [
+        "nsis",
+        "zip"
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "${productName}-Setup-${version}.${ext}"
     },
     "linux": {
-      "target": ["AppImage", "deb"],
-      "category": "Development"
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Development",
+      "synopsis": "AI Assistant Desktop Client"
     },
     "directories": {
-      "output": "dist"
+      "output": "dist",
+      "buildResources": "build"
     },
     "files": [
       "src/**/*",
-      "package.json"
+      "package.json",
+      "LICENSE",
+      "README.md"
     ],
     "protocols": {
       "name": "AIMetar Protocol",
@@ -49,8 +74,12 @@
     }
   },
   "devDependencies": {
+    "@electron/notarize": "^2.5.0",
     "cross-env": "^7.0.3",
     "electron": "^33.2.0",
     "electron-builder": "^25.1.8"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
   }
 }

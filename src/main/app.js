@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, BrowserView, Menu } = require('electron')
 const path = require('path')
 const TabManager = require('./windows/tabs')
 const { BrowserWindowManager } = require('./windows/browser')
+const { autoUpdater } = require('electron-updater')
 app.name = 'AIMetar'
 app.setName('AIMetar')
 class Application {
@@ -15,6 +16,10 @@ class Application {
 
         // 禁用 FIDO 和蓝牙相关功能
         app.commandLine.appendSwitch('disable-features', 'WebAuthentication,WebUSB,WebBluetooth')
+
+        // 配置自动更新
+        autoUpdater.autoDownload = false
+        autoUpdater.checkForUpdatesAndNotify()
     }
 
     createMainWindow() {
@@ -149,6 +154,16 @@ class Application {
             if (process.platform !== 'darwin') {
                 app.quit()
             }
+        })
+    }
+
+    setupAutoUpdater() {
+        autoUpdater.on('update-available', () => {
+            // 处理更新可用的情况
+        })
+        
+        autoUpdater.on('update-downloaded', () => {
+            // 处理更新下载完成的情况
         })
     }
 }
