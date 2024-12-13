@@ -1,5 +1,6 @@
 {
-  "name": "jyiai-app-desktop",
+  "name": "AIMetar",
+  "productName": "AIMetar",
   "version": "1.0.0",
   "description": "简易AI桌面版",
   "main": "src/main/app.js",
