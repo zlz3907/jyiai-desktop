@@ -1,7 +1,9 @@
-const { app, BrowserWindow, ipcMain, BrowserView } = require('electron')
+const { app, BrowserWindow, ipcMain, BrowserView, Menu } = require('electron')
 const path = require('path')
 const TabManager = require('./windows/tabs')
 const { BrowserWindowManager } = require('./windows/browser')
+app.name = 'AIMetar'
+app.setName('AIMetar')
 class Application {
     constructor() {
         // 设置环境变量
@@ -10,23 +12,53 @@ class Application {
         this.mainWindow = null
         this.tabManager = null
         this.browserWindowManager = new BrowserWindowManager()
+
+        // 禁用 FIDO 和蓝牙相关功能
+        app.commandLine.appendSwitch('disable-features', 'WebAuthentication,WebUSB,WebBluetooth')
     }
 
     createMainWindow() {
+        console.log(`process.platform: ${process.platform}`)
         this.mainWindow = new BrowserWindow({
-            width: 1200,
-            height: 800,
+            width: 1215,
+            height: 751,
+            minWidth: 800,
+            minHeight: 600,
+            darkTheme: true,
+            // frame: false,
+            // show: false,
+            autoHideMenuBar: true, 
+            ...(process.platform !== 'darwin' ? {
+                titleBarStyle: 'hidden',
+                titleBarOverlay: {
+                    color: '#2f3241',
+                    symbolColor: '#74b1be',
+                    height: 32
+                }
+            } : {
+                titleBarStyle: 'hiddenInset',
+            }),
+            // backgroundColor: '#2f3241',
             webPreferences: {
                 nodeIntegration: false,
                 contextIsolation: true,
                 webSecurity: true,
-                preload: path.join(__dirname, '../preload/sdk.js')
+                sandbox: true,
+                enableRemoteModule: true,
+                preload: path.join(__dirname, '../preload/sdk.js'),
             }
         })
+
+        if (process.platform !== 'darwin') {
+            // this.mainWindow.setWindowButtonVisibility(false)
+            // this.mainWindow.se
+        }
+        
 
         // 加载主窗口HTML
         // this.mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'))
         this.mainWindow.loadURL('http://localhost:59001/desktop')
+        Menu.setApplicationMenu(null)
         // 初始化标签管理器
         this.tabManager = new TabManager(this.mainWindow)
         // 延迟创建初始标签
@@ -35,6 +67,8 @@ class Application {
         // 设置IPC处理程序
         this.setupIPC()
 
+        
+        // this.injectWinEvents()
         // 测试
         // const view = new BrowserView()
         // view.setBounds({ x: 0, y: 0, width: 800, height: 600 })
@@ -43,9 +77,11 @@ class Application {
 
         // 如果是开发环境，打开开发者工具
         // console.log('process.env.NODE_ENV', process.env.NODE_ENV)
+        this.mainWindow.setAutoHideMenuBar(true)
+        this.mainWindow.setMenu(null)
         if (process.env.NODE_ENV === 'development') {
             console.log('Opening DevTools in development mode')
-            this.mainWindow.webContents.openDevTools()
+            // this.mainWindow.webContents.openDevTools()
         }
         
     }
@@ -92,9 +128,16 @@ class Application {
         })
     }
 
-    async start() {
-        await app.whenReady()
-        this.createMainWindow()
+    injectWinEvents() {
+        this.mainWindow.on('ready-to-show', () => {
+            this.mainWindow.show()
+        })
+    }
+
+    start() {
+        app.whenReady().then(() => {
+            this.createMainWindow()
+        })
 
         app.on('activate', () => {
             if (BrowserWindow.getAllWindows().length === 0) {
@@ -109,6 +152,75 @@ class Application {
         })
     }
 }
+
+const template = [
+    {
+        label: '应用',
+        submenu: [
+            {
+                label: '关于',
+                click: () => {
+                    // 在这里放置关于对话框的逻辑
+                    console.log('关于此应用');
+                }
+            },
+            {
+                type: 'separator' // 分隔线
+            },
+            {
+                label: '退出',
+                role: 'quit' // 退出应用
+            }
+        ]
+    },
+    {
+        label: '编辑',
+        submenu: [
+            {
+                label: '撤销',
+                role: 'undo'
+            },
+            {
+                label: '重做',
+                role: 'redo'
+            },
+            { type: 'separator' },
+            {
+                label: '剪切',
+                role: 'cut'
+            },
+            {
+                label: '复制',
+                role: 'copy'
+            },
+            {
+                label: '粘贴',
+                role: 'paste'
+            }
+        ]
+    },
+    {
+        label: '查看',
+        submenu: [
+            {
+                label: '刷新',
+                role: 'reload'
+            },
+            {
+                label: '强制重新加载',
+                role: 'forceReload'
+            },
+            {
+                label: '开发者工具',
+                role: 'toggleDevTools'
+            }
+        ]
+    }
+];
+
+const menu = Menu.buildFromTemplate(template);
+Menu.setApplicationMenu(menu);
+
 
 const application = new Application()
 application.start() 
