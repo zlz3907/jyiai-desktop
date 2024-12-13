@@ -1,31 +1,67 @@
+# OS generated files
 .DS_Store
-node_modules
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Dependencies
+node_modules/
 /dist
+/dist.*
+dist.tar.gz
 
-
-# local env files
-.env.local
-.env.*.local
-
-# Log files
+# Debug logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+*.log
+
+# Local env files
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+/config/.env.*
 
 # Editor directories and files
-.idea
-.vscode
+.idea/
+.vscode/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
-
-# 开发用的配置
-/config/.env.development
 *.iml
+
+# Package manager locks
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
 *.lock
 *-lock.*
-dist.tar.gz
-dist.*
+
+# Build output
+/build
+/out
+*.exe
+*.dmg
+*.app
+*.zip
+
+# Testing
+/coverage
+.nyc_output
+
+# Temporary files
+.tmp/
+.temp/
+*.tmp
+*~
+
+# Project specific
+/config/local.*
