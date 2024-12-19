@@ -164,6 +164,24 @@ class Application {
         ipcMain.handle('layout:load-content', (event, { topUrl, bottomUrl }) => {
             this.layoutManager.loadContent(topUrl, bottomUrl)
         })
+
+        ipcMain.handle('show-tabs-menu', (event, { x, y, menuUrl }) => {
+            if (!menuUrl) {
+                console.error('Menu URL is required')
+                return Promise.reject(new Error('Menu URL is required'))
+            }
+            return this.tabManager.createTabsMenu(x, y, menuUrl)
+        })
+
+        ipcMain.on('menu-close', () => {
+            if (this.tabManager.menuView) {
+                this.tabManager.closeTabsMenu()
+            }
+        })
+
+        ipcMain.on('tab-command', (event, command) => {
+            this.topView.webContents.send('tab-command', command)
+        })
     }
 
     start() {

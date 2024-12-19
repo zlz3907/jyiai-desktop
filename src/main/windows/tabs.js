@@ -1,4 +1,4 @@
-const { BrowserView, WebContentsView } = require('electron')
+const { BrowserView, WebContentsView, Menu } = require('electron')
 const path = require('path')
 const { proxyConfig } = require('../config/proxy')
 
@@ -10,6 +10,7 @@ class TabManager {
         this.tabStates = new Map()
         this.activeTabId = null
         this.toolbarHeight = 72
+        this.menuView = null
 
         // 添加视图状态枚举
         this.ViewState = {
@@ -221,7 +222,7 @@ class TabManager {
             id: tabId
         }
         updatedState.url = updatedState?.navigate ? '' : updatedState?.url
-        console.log('updatedState', messageType, currentState?.navigate, updatedState)
+        // console.log('updatedState', messageType, currentState?.navigate, updatedState)
         this.tabStates.set(tabId, updatedState)
         this._sendMessage(messageType, updatedState)
     }
@@ -233,16 +234,27 @@ class TabManager {
         const customSession = this._createCustomSession(options.useProxy)
         const view = new WebContentsView({
             webPreferences: {
-                nodeIntegration: true,
-                contextIsolation: false,
+                nodeIntegration: options.navigate ? false : true,
+                contextIsolation: options.navigate ? true : false,
                 session: customSession,
                 enableBlinkFeatures: '',
-                disableBlinkFeatures: 'WebAuthentication,WebUSB,WebBluetooth'
+                disableBlinkFeatures: 'WebAuthentication,WebUSB,WebBluetooth',
+                ...(options.navigate ? {
+                    preload: path.join(__dirname, '../../preload/sdk.js')
+                } : {})
             }
         })
 
+        if (options.navigate) {
+            // view.webContents.openDevTools({ mode: 'detach' })
+        }
+
         const tabId = options.tabId || Date.now().toString()
         this.tabs.set(tabId, view)
+        
+        // 设置为活动标签页
+        this.activeTabId = tabId
+        
         this._updateTabState(tabId, {
             useProxy: options.useProxy || false,
             url: options?.navigate ? 'about:blank' : url,
@@ -254,9 +266,18 @@ class TabManager {
         this._setupEventListeners(contents, tabId)
         contents.setUserAgent(contents.getUserAgent() + ' JYIAIBrowser')
 
+        // 先移除其他标签页的显示
+        for (const [id, v] of this.tabs) {
+            if (id !== tabId) {
+                this.containerView.removeChildView(v)
+            }
+        }
+
+        // 添加新标签页到容器
         this.containerView.addChildView(view)
         this.updateActiveViewBounds()
 
+        console.log('createTab', url, 'activeTabId:', this.activeTabId)
         contents.loadURL(url, {
             timeout: 30000,
             extraHeaders: 'pragma: no-cache\n'
@@ -271,6 +292,9 @@ class TabManager {
     updateActiveViewBounds() {
         if (!this.activeTabId) return
         const view = this.tabs.get(this.activeTabId)
+        if (!view) return
+
+        console.log('updateActiveViewBounds', this.activeTabId, view.getBounds())
         const bounds = this.containerView.getBounds()
         view.setBounds({
             x: 0,
@@ -495,6 +519,167 @@ class TabManager {
             this.createTab(url)
             return { action: 'deny' }
         })
+    }
+
+    // 创建自定义弹出菜单
+    createTabsMenu(x, y, menuUrl) {
+        // 如果已有菜单，先关闭
+        if (this.menuView) {
+            this.closeTabsMenu()
+        }
+
+        console.log('createTabsMenu', x, y, menuUrl)
+        return new Promise((resolve) => {
+            // 准备菜单数据
+            const menuData = {
+                tabs: Array.from(this.tabStates.values()),
+                activeTabId: this.activeTabId
+            }
+
+            // 计算菜单高度
+            const itemHeight = 40  // 每个标签项的高度
+            const headerHeight = 48  // 菜单头部高度
+            const footerHeight = 48  // 菜单底部高度（包含分隔线和新建标签按钮）
+            const separatorHeight = 1  // 分隔线高度
+            const padding = 16  // 上下padding总和
+            
+            // 计算标签列表的高度
+            const tabsHeight = menuData.tabs.length * itemHeight
+            
+            // 计算总高度（标签列表 + 头部 + 底部 + padding）
+            let totalHeight = tabsHeight + headerHeight + footerHeight + padding
+            
+            // 获取窗口高度并设置最大高度限制
+            const bounds = this.containerView.getBounds()
+            const maxHeight = bounds.height - this.toolbarHeight - 20  // 减去工具栏高度和一些边距
+            const menuHeight = Math.min(totalHeight, maxHeight)
+            const menuWidth = 300  // 菜单宽度
+
+            // 创建菜单视图
+            this.menuView = new WebContentsView({
+                webPreferences: {
+                    nodeIntegration: false,
+                    contextIsolation: true,
+                    webSecurity: true,
+                    sandbox: true,
+                    enableRemoteModule: true,
+                    preload: path.join(__dirname, '../../preload/sdk.js'),
+                }
+            })
+
+            // 添加到容器
+            this.containerView.addChildView(this.menuView)
+            // this.menuView.webContents.openDevTools({ mode: 'detach' })
+
+            // 确保菜单不会超出窗口边界
+            const menuX = Math.min(x, bounds.width - menuWidth)
+            const menuY = Math.min(y, bounds.height - menuHeight)
+
+            // 设置菜单视图的位置和大小
+            this.menuView.setBounds({
+                x: menuX,
+                y: menuY,
+                width: menuWidth,
+                height: menuHeight
+            })
+
+            // 设置菜单页面加载完成的处理
+            this.menuView.webContents.once('did-finish-load', () => {
+                // 发送标签数据和尺寸信息到菜单页面
+                console.log('init-menu-data', {
+                    ...menuData,
+                    dimensions: {
+                        itemHeight,
+                        headerHeight,
+                        footerHeight,
+                        separatorHeight,
+                        padding,
+                        totalHeight,
+                        menuHeight,
+                        menuWidth
+                    }
+                })
+                this.menuView.webContents.send('init-menu-data', {
+                    ...menuData,
+                    dimensions: {
+                        itemHeight,
+                        headerHeight,
+                        footerHeight,
+                        separatorHeight,
+                        padding,
+                        totalHeight,
+                        menuHeight,
+                        menuWidth
+                    }
+                })
+            })
+
+            // 监听菜单操作
+            const removeMenu = () => {
+                if (this.menuView) {
+                    this.containerView.removeChildView(this.menuView)
+                    this.menuView.webContents.destroy()
+                    this.menuView = null
+                    resolve()
+                }
+            }
+
+            // 监听菜单关闭事件
+            this.menuView.webContents.on('ipc-message', (event, channel, ...args) => {
+                switch (channel) {
+                    case 'menu-close':
+                        removeMenu()
+                        break
+                    case 'switch-tab':
+                        this.switchTab(args[0])
+                        removeMenu()
+                        break
+                    case 'close-tab':
+                        this.closeTab(args[0])
+                        removeMenu()
+                        break
+                    case 'new-tab':
+                        this.createTab(args[0] || 'about:blank')
+                        removeMenu()
+                        break
+                    // 可以添加更多菜单操作...
+                }
+            })
+
+            // 点击菜单外部区域关闭菜单
+            const clickHandler = (event) => {
+                const clickX = event.x
+                const clickY = event.y
+                const menuBounds = this.menuView.getBounds()
+
+                if (clickX < menuBounds.x || clickX > menuBounds.x + menuBounds.width ||
+                    clickY < menuBounds.y || clickY > menuBounds.y + menuBounds.height) {
+                    removeMenu()
+                    this.containerView.removeListener('click', clickHandler)
+                }
+            }
+            this.containerView.on('click', clickHandler)
+
+            // 加载菜单页面
+            this.menuView.webContents.loadURL(menuUrl).catch(err => {
+                console.error('Failed to load menu:', err)
+                removeMenu()
+            })
+        })
+    }
+
+    // 添加关闭菜单的方法
+    closeTabsMenu() {
+        if (this.menuView) {
+            this.containerView.removeChildView(this.menuView)
+            this.menuView.webContents.destroy()
+            this.menuView = null
+        }
+    }
+
+    // 获取当前活动标签
+    getActiveTabId() {
+        return this.activeTabId
     }
 }
 

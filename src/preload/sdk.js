@@ -62,6 +62,19 @@ contextBridge.exposeInMainWorld('jyiaiSDK', {
     onTabLoading: (callback) => {
       // console.log('onTabLoading 注册了吗？')
       ipcRenderer.on('tab-loading', (event, data) => callback(data))
+    },
+
+    // 菜单
+    showTabsMenu: (x, y, menuUrl) => ipcRenderer.invoke('show-tabs-menu', { x, y, menuUrl }),
+    closeTabsMenu: () => ipcRenderer.send('menu-close'),
+    onMenuData: (callback) => {
+      ipcRenderer.on('init-menu-data', (event, data) => callback(data))
+    },
+
+    // 向topView发送标签管理的相关指令
+    sendTabCommand: (command) => ipcRenderer.send('tab-command', command),
+    onTabCommand: (callback) => {
+      ipcRenderer.on('tab-command', (event, command) => callback(command))
     }
   }
 }) 
