@@ -9,25 +9,30 @@
     "email": "service@zhycit.com"
   },
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:zlz3907/jyiai-desktop.git"
+  },
+  "publish": {
+    "provider": "github",
+    "owner": "zhycit",
+    "repo": "jyiai-desktop"
+  },
   "engines": {
     "node": ">=18.0.0",
     "npm": ">=8.0.0"
   },
   "scripts": {
     "start": "cross-env NODE_ENV=development electron .",
-    "build": "cross-env NODE_ENV=production electron-builder",
+    "build": "cross-env NODE_ENV=production electron-builder --publish never",
     "dev": "cross-env NODE_ENV=development electron .",
     "publish": "electron-builder -p always",
-    "release": "electron-builder --mac --win --linux -p always"
+    "release": "electron-builder --mac -p always --config.mac.notarize=true"
   },
   "build": {
     "appId": "com.zhycit.jyiai",
     "productName": "AIMetar",
-    "publish": {
-      "provider": "github",
-      "owner": "zhycit",
-      "repo": "jyiai-desktop"
-    },
+    "afterSign": "build/notarize.js",
     "mac": {
       "category": "public.app-category.productivity",
       "target": [
@@ -38,7 +43,9 @@
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
-      "entitlementsInherit": "build/entitlements.mac.plist"
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "icon": "build/icon.icns",
+      "identity": "Beijing zhong he yuan chuang information technology co. LTD (32CZ837ZAV)"
     },
     "win": {
       "target": [

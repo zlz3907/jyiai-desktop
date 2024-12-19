@@ -65,3 +65,10 @@ pnpm-lock.yaml
 
 # Project specific
 /config/local.*
+
+# Signing and notarization
+electron-builder.env
+*.p12
+*.pfx
+*.key
+*.provisionprofile

@@ -1,19 +1,18 @@
-const { app, BrowserWindow, ipcMain, BrowserView, Menu } = require('electron')
+const { app, BaseWindow, ipcMain, Menu, WebContentsView } = require('electron')
 const path = require('path')
 const TabManager = require('./windows/tabs')
 const { BrowserWindowManager } = require('./windows/browser')
 const { autoUpdater } = require('electron-updater')
+const LayoutManager = require('./windows/layout')
+
 app.name = 'AIMetar'
 app.setName('AIMetar')
+
 class Application {
     constructor() {
-        // 设置环境变量
-        // process.env.NODE_ENV = process.env.NODE_ENV || 'development'
-        
         this.mainWindow = null
         this.tabManager = null
         this.browserWindowManager = new BrowserWindowManager()
-
         // 禁用 FIDO 和蓝牙相关功能
         app.commandLine.appendSwitch('disable-features', 'WebAuthentication,WebUSB,WebBluetooth')
 
@@ -24,15 +23,15 @@ class Application {
 
     createMainWindow() {
         console.log(`process.platform: ${process.platform}`)
-        this.mainWindow = new BrowserWindow({
+        
+        // 使用 BaseWindow 创建主窗口
+        this.mainWindow = new BaseWindow({
             width: 1215,
             height: 751,
             minWidth: 800,
             minHeight: 600,
             darkTheme: true,
-            // frame: false,
-            // show: false,
-            autoHideMenuBar: true, 
+            autoHideMenuBar: true,
             ...(process.platform !== 'darwin' ? {
                 titleBarStyle: 'hidden',
                 titleBarOverlay: {
@@ -43,7 +42,6 @@ class Application {
             } : {
                 titleBarStyle: 'hiddenInset',
             }),
-            // backgroundColor: '#2f3241',
             webPreferences: {
                 nodeIntegration: false,
                 contextIsolation: true,
@@ -54,51 +52,73 @@ class Application {
             }
         })
 
-        if (process.platform !== 'darwin') {
-            // this.mainWindow.setWindowButtonVisibility(false)
-            // this.mainWindow.se
-        }
-        
-
-        // 加载主窗口HTML
-        // this.mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'))
-        this.mainWindow.loadURL('http://localhost:59001/desktop')
         Menu.setApplicationMenu(null)
-        // 初始化标签管理器
-        this.tabManager = new TabManager(this.mainWindow)
-        // 延迟创建初始标签
-        // this.tabManager.createTab('https://www.baidu.com/', { useProxy: false })
-        // this.tabManager.createTab('https://wwww.google.com', { useProxy: true })
+        this.mainWindow.setAutoHideMenuBar(true)
+        this.mainWindow.setMenu(null)
+
+        // 创建顶部视图（工具栏和标签栏）
+        this.topView = new WebContentsView({
+            webPreferences: {
+                nodeIntegration: false,
+                contextIsolation: true,
+                webSecurity: true,
+                sandbox: true,
+                enableRemoteModule: true,
+                preload: path.join(__dirname, '../preload/sdk.js'),
+            }
+        })
+
+        // 将顶部视图添加到主窗口
+        this.mainWindow.contentView.addChildView(this.topView)
+
+        // 设置顶部视图的位置和大小
+        const bounds = this.mainWindow.getBounds()
+        const topHeight = 72 // 根据需求文档设置高度
+
+        this.topView.setBounds({
+            x: 0,
+            y: 0,
+            width: bounds.width,
+            height: topHeight
+        })
+
+        // 加载默认页面
+        this.topView.webContents.loadURL('http://localhost:59001/desktop')
+
+        // 初始化标签管理器，传入 contentView 和 topView
+        this.tabManager = new TabManager(this.mainWindow.contentView, this.topView)
+
+        // 监听窗口大小改变
+        this.mainWindow.on('resize', () => {
+            const newBounds = this.mainWindow.getBounds()
+            // 更新顶部视图大小
+            this.topView.setBounds({
+                x: 0,
+                y: 0,
+                width: newBounds.width,
+                height: topHeight
+            })
+            // 更新当前活动标签的大小
+            this.tabManager.updateActiveViewBounds()
+        })
+
         // 设置IPC处理程序
         this.setupIPC()
 
-        
-        // this.injectWinEvents()
-        // 测试
-        // const view = new BrowserView()
-        // view.setBounds({ x: 0, y: 0, width: 800, height: 600 })
-        // this.mainWindow.addBrowserView(view)
-        // view.webContents.loadURL('https://www.baidu.com')
-
-        // 如果是开发环境，打开开发者工具
-        // console.log('process.env.NODE_ENV', process.env.NODE_ENV)
-        this.mainWindow.setAutoHideMenuBar(true)
-        this.mainWindow.setMenu(null)
         if (process.env.NODE_ENV === 'development') {
             console.log('Opening DevTools in development mode')
-            // this.mainWindow.webContents.openDevTools()
+            this.topView.webContents.openDevTools({ mode: 'detach' })
         }
-        
     }
 
     setupIPC() {
         ipcMain.handle('window:openUrl', (event, options) => {
-            // console.log('window:openUrl', options)
             this.browserWindowManager.createWindow(options)
         })
         // 标签页操作
         ipcMain.handle('create-tab', (event, url, options = {}) => {
             console.log('create-tab', url, options)
+            
             return this.tabManager.createTab(url, options)
         })
 
@@ -131,11 +151,18 @@ class Application {
         ipcMain.handle('get-tab-info', (event, tabId) => {
             return this.tabManager.getTabInfo(tabId)
         })
-    }
 
-    injectWinEvents() {
-        this.mainWindow.on('ready-to-show', () => {
-            this.mainWindow.show()
+        // 添加布局相关的 IPC 处理
+        ipcMain.handle('layout:toggle-top', (event, show) => {
+            this.layoutManager.toggleView(this.layoutManager.getTopView(), show)
+        })
+
+        ipcMain.handle('layout:toggle-bottom', (event, show) => {
+            this.layoutManager.toggleView(this.layoutManager.getBottomView(), show)
+        })
+
+        ipcMain.handle('layout:load-content', (event, { topUrl, bottomUrl }) => {
+            this.layoutManager.loadContent(topUrl, bottomUrl)
         })
     }
 
@@ -145,7 +172,7 @@ class Application {
         })
 
         app.on('activate', () => {
-            if (BrowserWindow.getAllWindows().length === 0) {
+            if (BaseWindow.getAllWindows().length === 0) {
                 this.createMainWindow()
             }
         })
@@ -168,73 +195,8 @@ class Application {
     }
 }
 
-const template = [
-    {
-        label: '应用',
-        submenu: [
-            {
-                label: '关于',
-                click: () => {
-                    // 在这里放置关于对话框的逻辑
-                    console.log('关于此应用');
-                }
-            },
-            {
-                type: 'separator' // 分隔线
-            },
-            {
-                label: '退出',
-                role: 'quit' // 退出应用
-            }
-        ]
-    },
-    {
-        label: '编辑',
-        submenu: [
-            {
-                label: '撤销',
-                role: 'undo'
-            },
-            {
-                label: '重做',
-                role: 'redo'
-            },
-            { type: 'separator' },
-            {
-                label: '剪切',
-                role: 'cut'
-            },
-            {
-                label: '复制',
-                role: 'copy'
-            },
-            {
-                label: '粘贴',
-                role: 'paste'
-            }
-        ]
-    },
-    {
-        label: '查看',
-        submenu: [
-            {
-                label: '刷新',
-                role: 'reload'
-            },
-            {
-                label: '强制重新加载',
-                role: 'forceReload'
-            },
-            {
-                label: '开发者工具',
-                role: 'toggleDevTools'
-            }
-        ]
-    }
-];
-
-const menu = Menu.buildFromTemplate(template);
-Menu.setApplicationMenu(menu);
+// const menu = Menu.buildFromTemplate(template);
+// Menu.setApplicationMenu(menu);
 
 
 const application = new Application()

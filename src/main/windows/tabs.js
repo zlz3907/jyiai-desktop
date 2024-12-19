@@ -1,17 +1,56 @@
-const { BrowserView } = require('electron')
+const { BrowserView, WebContentsView } = require('electron')
 const path = require('path')
 const { proxyConfig } = require('../config/proxy')
 
 class TabManager {
-    constructor(mainWindow) {
-        this.mainWindow = mainWindow
+    constructor(containerView, topView) {
+        this.containerView = containerView
+        this.topView = topView
         this.tabs = new Map()
         this.tabStates = new Map()
         this.activeTabId = null
         this.toolbarHeight = 72
 
-        // 监听窗口大小改变
-        this.mainWindow.on('resize', () => this.updateActiveViewBounds())
+        // 添加视图状态枚举
+        this.ViewState = {
+            LOADING: 'loading',
+            READY: 'ready',
+            ERROR: 'error'
+        }
+
+        // 重新定义更细化的消息类型常量
+        this.MessageType = {
+            TAB_TITLE_UPDATED: 'tab-title-updated',
+            TAB_URL_UPDATED: 'tab-url-updated',
+            TAB_LOADING_STATE: 'tab-loading-state',
+            TAB_STATE_CHANGED: 'tab-state-changed',
+            TAB_CREATED: 'tab-created',
+            TAB_VIEW_STATE: 'tab-view-state'
+        }
+    }
+
+    // 私有方法：发送消息到顶部视图
+    _sendMessage(type, payload) {
+        if (!this.topView?.webContents) {
+            console.warn('TopView not available for message:', type)
+            return
+        }
+        this.topView.webContents.send(this.MessageType.TAB_STATE_CHANGED, {type, payload})
+    }
+
+    createBottomView() {
+        const bottomView = new WebContentsView({
+            webPreferences: {
+                nodeIntegration: false,
+                contextIsolation: true,
+                webSecurity: true,
+                sandbox: true,
+                enableRemoteModule: true,
+                preload: path.join(__dirname, '../preload/sdk.js'),
+            }
+        })
+        this.containerView.addChildView(bottomView)
+        // 其他初始化代码...
     }
 
     // 私有方法：创建自定义会话
@@ -89,21 +128,21 @@ class TabManager {
     _setupEventListeners(contents, tabId) {
         // 页面标题更新
         contents.on('page-title-updated', (event, title) => {
-            this._updateTabState(tabId, { title })
+            this._updateTabState(tabId, { title }, this.MessageType.TAB_TITLE_UPDATED)
         })
 
         // URL 变化
         contents.on('did-navigate', (event, url) => {
-            this._updateTabState(tabId, { url })
+            this._updateTabState(tabId, { url }, this.MessageType.TAB_URL_UPDATED)
         })
 
         // 加载状态
         contents.on('did-start-loading', () => {
-            this._updateTabState(tabId, { loading: true })
+            this._updateTabState(tabId, { loading: true }, this.MessageType.TAB_LOADING_STATE)
         })
 
         contents.on('did-stop-loading', () => {
-            this._updateTabState(tabId, { loading: false })
+            this._updateTabState(tabId, { loading: false }, this.MessageType.TAB_LOADING_STATE)
         })
 
         // 代理认证
@@ -132,29 +171,67 @@ class TabManager {
         contents.session.setCertificateVerifyProc((request, callback) => {
             callback(0) // 允许所有证书
         })
+
+        contents.on('did-fail-load', (event, errorCode, errorDescription) => {
+            this._updateViewState(tabId, this.ViewState.ERROR, {
+                errorCode,
+                errorDescription
+            })
+        })
+
+        contents.on('crashed', () => {
+            this._updateViewState(tabId, this.ViewState.ERROR, {
+                errorCode: 'CRASHED',
+                errorDescription: 'Page crashed'
+            })
+        })
+
+        // Fix memory monitoring using process
+        const memoryInterval = setInterval(() => {
+            if (contents.isDestroyed()) {
+                clearInterval(memoryInterval);
+                return;
+            }
+            
+            const processId = contents.getProcessId();
+            if (processId) {
+                process.getProcessMemoryInfo(processId).then(info => {
+                    if (info.private > 1024 * 1024 * 500) { // 500MB
+                        console.warn(`Tab ${tabId} memory usage high:`, info)
+                    }
+                }).catch(err => {
+                    console.error('Failed to get memory info:', err);
+                    clearInterval(memoryInterval);
+                });
+            }
+        }, 30000);
+
+        // Clear event listeners
+        contents.once('destroyed', () => {
+            clearInterval(memoryInterval)
+        })
     }
 
     // 私有方法：更新标签状态
-    _updateTabState(tabId, newState) {
+    _updateTabState(tabId, newState, messageType = this.MessageType.TAB_STATE_CHANGED) {
         const currentState = this.tabStates.get(tabId) || {}
         const updatedState = {
             ...currentState,
             ...newState,
             id: tabId
         }
+        updatedState.url = updatedState?.navigate ? '' : updatedState?.url
+        console.log('updatedState', messageType, currentState?.navigate, updatedState)
         this.tabStates.set(tabId, updatedState)
-        this.mainWindow.webContents.send('tab-loading', updatedState)
+        this._sendMessage(messageType, updatedState)
     }
 
     // 公共方法
     createTab(url = 'about:blank', options = {}) {
-        if (url === '') {
-            url = 'about:blank'
-            return
-        }
-
+        // const targetUrl = url || 'http://localhost:59001/desktop/links'
+        // console.log('createTab', url)
         const customSession = this._createCustomSession(options.useProxy)
-        const view = new BrowserView({
+        const view = new WebContentsView({
             webPreferences: {
                 nodeIntegration: true,
                 contextIsolation: false,
@@ -168,17 +245,16 @@ class TabManager {
         this.tabs.set(tabId, view)
         this._updateTabState(tabId, {
             useProxy: options.useProxy || false,
-            url: url,
-            title: 'New Tab'
-        })
+            url: options?.navigate ? 'about:blank' : url,
+            title: options?.navigate ? 'about:blank' : 'New Tab',
+            navigate: options?.navigate
+        }, this.MessageType.TAB_CREATED)
 
         const contents = view.webContents
         this._setupEventListeners(contents, tabId)
         contents.setUserAgent(contents.getUserAgent() + ' JYIAIBrowser')
 
-        this.mainWindow.addBrowserView(view)
-        this.mainWindow.setBrowserView(view)
-        this.activeTabId = tabId
+        this.containerView.addChildView(view)
         this.updateActiveViewBounds()
 
         contents.loadURL(url, {
@@ -188,18 +264,14 @@ class TabManager {
             console.error('Failed to load URL:', err)
         })
 
-        return {
-            id: tabId,
-            url,
-            title: 'New Tab'
-        }
+        // console.log('send createTab', this.tabStates.get(tabId))
+        // this._sendMessage(this.MessageType.TAB_CREATED, this.tabStates.get(tabId))
     }
 
     updateActiveViewBounds() {
-        // console.log('updateActiveViewBounds', this.activeTabId)
         if (!this.activeTabId) return
         const view = this.tabs.get(this.activeTabId)
-        const bounds = this.mainWindow.getBounds()
+        const bounds = this.containerView.getBounds()
         view.setBounds({
             x: 0,
             y: this.toolbarHeight,
@@ -212,19 +284,20 @@ class TabManager {
         // 遍历所有标签页，只显示匹配的id
         for (const [id, view] of this.tabs) {
             if (id === tabId) {
-                this.mainWindow.setBrowserView(view)
-                this.activeTabId = tabId
+                this.containerView.addChildView(view);
+                this.activeTabId = tabId;
+            } else {
+                this.containerView.removeChildView(view);
             }
         }
         
         // 如果没有找到匹配的标签，清除当前显示
         if (!this.tabs.has(tabId)) {
-            this.mainWindow.setBrowserView(null)
-            this.activeTabId = null
+            this.activeTabId = null;
         }
         
         // 更新视图边界
-        this.updateActiveViewBounds()
+        this.updateActiveViewBounds();
     }
 
     closeTab(tabId) {
@@ -232,7 +305,7 @@ class TabManager {
         if (!this.tabs.has(tabId)) return
         
         const view = this.tabs.get(tabId)
-        this.mainWindow.removeBrowserView(view)
+        this.containerView.removeChildView(view)
         view.webContents.destroy()
         this.tabs.delete(tabId)
         this.tabStates.delete(tabId)  // 删除状态
@@ -326,6 +399,102 @@ class TabManager {
     // 添加获取标签信息的方法
     getTabInfo(tabId) {
         return this.tabStates.get(tabId) || null
+    }
+
+    // 修改视图状态管理方法
+    _updateViewState(tabId, state, data = {}) {
+        const currentState = this.tabStates.get(tabId) || {}
+        const updatedState = {
+            ...currentState,
+            state,
+            lastUpdated: Date.now(),
+            ...data
+        }
+        this.tabStates.set(tabId, updatedState)
+        this._sendMessage(this.MessageType.TAB_VIEW_STATE, updatedState)
+    }
+
+    dispose() {
+        // 清理所有标签页
+        for (const [tabId, view] of this.tabs) {
+            this.closeTab(tabId)
+        }
+        this.tabs.clear()
+        this.tabStates.clear()
+        this.activeTabId = null
+    }
+
+    pauseTab(tabId) {
+        const view = this.tabs.get(tabId)
+        if (view) {
+            view.webContents.audioMuted = true
+            view.webContents.setBackgroundThrottling(true)
+        }
+    }
+
+    resumeTab(tabId) {
+        const view = this.tabs.get(tabId)
+        if (view) {
+            view.webContents.audioMuted = false
+            view.webContents.setBackgroundThrottling(false)
+        }
+    }
+
+    _optimizeViewPerformance(view) {
+        const contents = view.webContents
+        
+        // 设置背景节流
+        contents.setBackgroundThrottling(true)
+        
+        // 禁用不需要的特性
+        contents.session.setPreloads([])
+        contents.session.setSpellCheckerEnabled(false)
+        
+        // 设置内存限制
+        contents.setMemoryLimit({ suggestLimit: 512 }) // 512MB
+    }
+
+    // 获取所有标签信息
+    getAllTabs() {
+        return Array.from(this.tabStates.values())
+    }
+
+    // 查找标签
+    findTabByUrl(url) {
+        for (const [tabId, state] of this.tabStates) {
+            if (state.url === url) {
+                return tabId
+            }
+        }
+        return null
+    }
+
+    // 批量操作
+    batchOperation(tabIds, operation) {
+        tabIds.forEach(tabId => {
+            if (this.tabs.has(tabId)) {
+                operation(this.tabs.get(tabId), tabId)
+            }
+        })
+    }
+
+    _setupSecurityPolicies(contents) {
+        // CSP 策略
+        contents.session.webRequest.onHeadersReceived((details, callback) => {
+            callback({
+                responseHeaders: {
+                    ...details.responseHeaders,
+                    'Content-Security-Policy': ['default-src \'self\'']
+                }
+            })
+        })
+
+        // 限制新窗口打开
+        contents.setWindowOpenHandler(({ url }) => {
+            // 在新标签页中打开而不是新窗口
+            this.createTab(url)
+            return { action: 'deny' }
+        })
     }
 }
 

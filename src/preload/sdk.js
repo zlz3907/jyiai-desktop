@@ -48,10 +48,11 @@ contextBridge.exposeInMainWorld('jyiaiSDK', {
     reload: () => ipcRenderer.invoke('navigate-reload'),
     navigateToUrl: (url) => ipcRenderer.invoke('navigate-to-url', url),
 
-    // 获取标签信息
-    getTabInfo: (tabId) => ipcRenderer.invoke('get-tab-info', tabId),
-
     // 事件监听
+    onTabStateChanged: (callback) => {
+      ipcRenderer.on('tab-state-changed', (event, data) => callback(data))
+    },
+    
     onTabTitleUpdated: (callback) => {
       ipcRenderer.on('tab-title-updated', (event, data) => callback(data))
     },
@@ -59,6 +60,7 @@ contextBridge.exposeInMainWorld('jyiaiSDK', {
       ipcRenderer.on('tab-url-updated', (event, data) => callback(data))
     },
     onTabLoading: (callback) => {
+      // console.log('onTabLoading 注册了吗？')
       ipcRenderer.on('tab-loading', (event, data) => callback(data))
     }
   }
