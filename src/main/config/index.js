@@ -1,16 +1,19 @@
 const path = require('path')
 const fs = require('fs')
-const os = require('os')
 
-// 配置文件路径
-const CONFIG_PATH = path.join(os.homedir(), '.jyiai', 'config.json')
+// 获取项目根目录路径
+const ROOT_DIR = path.resolve(__dirname, '../../..')
+
+// 配置目录和文件路径
+const CONFIG_DIR = path.join(ROOT_DIR, '.jyiai')
+const CONFIG_PATH = path.join(CONFIG_DIR, 'config.json')
 
 // 默认配置
 const defaultConfig = {
     proxy: {
         enabled: false,
-        host: '',
-        port: '',
+        host: 'localhost',
+        port: '7890',
         username: '',
         password: ''
     },
@@ -20,27 +23,42 @@ const defaultConfig = {
     autoUpdate: true
 }
 
-// 确保配置目录存在
-function ensureConfigDir() {
-    const configDir = path.dirname(CONFIG_PATH)
-    if (!fs.existsSync(configDir)) {
-        fs.mkdirSync(configDir, { recursive: true })
+// 确保配置文件存在
+function ensureConfig() {
+    // 确保配置目录存在
+    if (!fs.existsSync(CONFIG_DIR)) {
+        fs.mkdirSync(CONFIG_DIR, { recursive: true })
+        console.log('Created config directory at:', CONFIG_DIR)
+    }
+
+    // 确保配置文件存在
+    if (!fs.existsSync(CONFIG_PATH)) {
+        fs.writeFileSync(CONFIG_PATH, JSON.stringify(defaultConfig, null, 2))
+        console.log('Created default config at:', CONFIG_PATH)
     }
 }
 
 // 加载配置
 function loadConfig() {
     try {
-        ensureConfigDir()
-        if (fs.existsSync(CONFIG_PATH)) {
-            const config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'))
-            return { ...defaultConfig, ...config }
+        ensureConfig()
+        const fileContent = fs.readFileSync(CONFIG_PATH, 'utf8')
+        const config = JSON.parse(fileContent)
+        
+        // 合并默认配置，确保所有必要的字段都存在
+        const mergedConfig = {
+            ...defaultConfig,
+            ...config,
+            proxy: {
+                ...defaultConfig.proxy,
+                ...(config.proxy || {})
+            }
         }
-        // 如果配置文件不存在，创建默认配置
-        fs.writeFileSync(CONFIG_PATH, JSON.stringify(defaultConfig, null, 2))
-        return defaultConfig
+        
+        return mergedConfig
     } catch (error) {
         console.error('Failed to load config:', error)
+        // 如果出错，返回默认配置
         return defaultConfig
     }
 }
@@ -48,8 +66,17 @@ function loadConfig() {
 // 保存配置
 function saveConfig(config) {
     try {
-        ensureConfigDir()
-        fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2))
+        ensureConfig()
+        const mergedConfig = {
+            ...loadConfig(),  // 加载现有配置
+            ...config,        // 合并新配置
+            proxy: {
+                ...loadConfig().proxy,  // 保留现有代理配置
+                ...(config.proxy || {}) // 合并新的代理配置
+            }
+        }
+        fs.writeFileSync(CONFIG_PATH, JSON.stringify(mergedConfig, null, 2))
+        console.log('Config saved successfully')
         return true
     } catch (error) {
         console.error('Failed to save config:', error)
