@@ -72,3 +72,6 @@ electron-builder.env
 *.pfx
 *.key
 *.provisionprofile
+
+# Config files
+.jyiai/
