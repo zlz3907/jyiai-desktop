@@ -39,21 +39,6 @@ class TabManager {
         this.topView.webContents.send(this.MessageType.TAB_STATE_CHANGED, {type, payload})
     }
 
-    createBottomView() {
-        const bottomView = new WebContentsView({
-            webPreferences: {
-                nodeIntegration: false,
-                contextIsolation: true,
-                webSecurity: true,
-                sandbox: true,
-                enableRemoteModule: true,
-                preload: path.join(__dirname, '../preload/sdk.js'),
-            }
-        })
-        this.containerView.addChildView(bottomView)
-        // 其他初始化代码...
-    }
-
     // 私有方法：创建自定义会话
     _createCustomSession(useProxy = false) {
         const session = require('electron').session
@@ -246,9 +231,10 @@ class TabManager {
         })
 
         if (options.navigate) {
-            // view.webContents.openDevTools({ mode: 'detach' })
+            
         }
-
+        console.log('createTab', options)   
+        // view.webContents.openDevTools({ mode: 'detach' })
         const tabId = options.tabId || Date.now().toString()
         this.tabs.set(tabId, view)
         
@@ -259,7 +245,8 @@ class TabManager {
             useProxy: options.useProxy || false,
             url: options?.navigate ? 'about:blank' : url,
             title: options?.navigate ? 'about:blank' : 'New Tab',
-            navigate: options?.navigate
+            navigate: options?.navigate,
+            isHome: options?.isHome
         }, this.MessageType.TAB_CREATED)
 
         const contents = view.webContents
@@ -275,7 +262,7 @@ class TabManager {
 
         // 添加新标签页到容器
         this.containerView.addChildView(view)
-        this.updateActiveViewBounds()
+        this.updateActiveViewBounds(options?.isHome)
 
         console.log('createTab', url, 'activeTabId:', this.activeTabId)
         contents.loadURL(url, {
@@ -294,34 +281,47 @@ class TabManager {
         const view = this.tabs.get(this.activeTabId)
         if (!view) return
 
+        const tabState = this.tabStates.get(this.activeTabId)
+        const isHome = tabState?.isHome || false
         console.log('updateActiveViewBounds', this.activeTabId, view.getBounds())
         const bounds = this.containerView.getBounds()
         view.setBounds({
             x: 0,
-            y: this.toolbarHeight,
+            y: this.toolbarHeight - (isHome ? 44 : 0),
             width: bounds.width,
-            height: bounds.height - this.toolbarHeight
+            height: bounds.height - this.toolbarHeight + (isHome ? 44 : 0)
         })
+        const topBounds = this.topView.getBounds()
+        this.topView.setBounds({
+            x: 0,
+            y: 0,
+            width: bounds.width,
+            height: isHome ? 28 : 72
+        })
+        
     }
 
     switchTab(tabId) {
+        // 获取要切换到的标签的状态
+        const tabState = this.tabStates.get(tabId)
+        
         // 遍历所有标签页，只显示匹配的id
         for (const [id, view] of this.tabs) {
             if (id === tabId) {
-                this.containerView.addChildView(view);
-                this.activeTabId = tabId;
+                this.containerView.addChildView(view)
+                this.activeTabId = tabId
             } else {
-                this.containerView.removeChildView(view);
+                this.containerView.removeChildView(view)
             }
         }
         
         // 如果没有找到匹配的标签，清除当前显示
         if (!this.tabs.has(tabId)) {
-            this.activeTabId = null;
+            this.activeTabId = null
         }
         
-        // 更新视图边界
-        this.updateActiveViewBounds();
+        // 更新视图边界，传入 isHome 参数
+        this.updateActiveViewBounds(tabState?.isHome)
     }
 
     closeTab(tabId) {

@@ -88,16 +88,17 @@ class Application {
         // 初始化标签管理器，传入 contentView 和 topView
         this.tabManager = new TabManager(this.mainWindow.contentView, this.topView)
 
+        const newBounds = this.mainWindow.getBounds()
+        // 更新顶部视图大小
+        this.topView.setBounds({
+            x: 0,
+            y: 0,
+            width: newBounds.width,
+            height: topHeight
+        })
+
         // 监听窗口大小改变
         this.mainWindow.on('resize', () => {
-            const newBounds = this.mainWindow.getBounds()
-            // 更新顶部视图大小
-            this.topView.setBounds({
-                x: 0,
-                y: 0,
-                width: newBounds.width,
-                height: topHeight
-            })
             // 更新当前活动标签的大小
             this.tabManager.updateActiveViewBounds()
         })
