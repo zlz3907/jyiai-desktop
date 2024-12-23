@@ -1,9 +1,17 @@
-const { loadConfig } = require('./index')
+/**
+ * @fileoverview 代理配置管理模块
+ * @module config/proxy
+ */
 
-// 获取代理配置
+const { getSystemConfig } = require('./index')
+
+/**
+ * 获取代理配置
+ * @returns {Object} 代理配置对象
+ */
 function getProxyConfig() {
-    const config = loadConfig()
-    return config.proxy
+    const systemConfig = getSystemConfig()
+    return systemConfig.getProxy()
 }
 
 module.exports = { 

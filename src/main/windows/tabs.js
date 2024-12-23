@@ -1,6 +1,6 @@
-const { BrowserView, WebContentsView, Menu } = require('electron')
+const { WebContentsView, Menu } = require('electron')
 const path = require('path')
-const { proxyConfig } = require('../config/proxy')
+const { getSystemConfig } = require('../config')
 
 class TabManager {
     constructor(containerView, topView) {
@@ -28,6 +28,21 @@ class TabManager {
             TAB_CREATED: 'tab-created',
             TAB_VIEW_STATE: 'tab-view-state'
         }
+
+    }
+
+    // 获取代理配置的辅助方法
+    getProxyConfig() {
+        try {
+            return getSystemConfig().getProxy()
+        } catch (error) {
+            console.warn('Failed to get proxy config:', error)
+            return {
+                enabled: false,
+                host: 'localhost',
+                port: '7890'
+            }
+        }
     }
 
     // 私有方法：发送消息到顶部视图
@@ -54,8 +69,9 @@ class TabManager {
         return customSession
     }
 
-    // 私有方法：配置代理
+    // 配置代理
     _configureProxy(session) {
+        const proxyConfig = this.getProxyConfig()
         const proxySettings = {
             mode: 'fixed_servers',
             proxyRules: `http://${proxyConfig.host}:${proxyConfig.port}`,
@@ -63,9 +79,10 @@ class TabManager {
         }
 
         session.setProxy(proxySettings)
-        console.log('Proxy settings applied:', proxySettings)
+        
+        console.log('setProxy', proxyConfig)
 
-        // 添加代理认证头，针对不同域名使用不同的处理
+        // 添加代理认证头
         session.webRequest.onBeforeSendHeaders((details, callback) => {
             const auth = Buffer.from(`${proxyConfig.username}:${proxyConfig.password}`).toString('base64')
             const headers = {
@@ -74,20 +91,12 @@ class TabManager {
                 'Connection': 'keep-alive'
             }
 
-            // 针对 YouTube 视频链接添加特殊处理
-            if (details.url.includes('googlevideo.com')) {
-                headers['Range'] = 'bytes=0-' // 添加 Range 头
-                headers['Cache-Control'] = 'no-cache'
-            }
-
             callback({ requestHeaders: headers })
         })
 
-        // 优化错误处理
+        // 错误处理
         session.webRequest.onErrorOccurred((details) => {
-            // 忽略视频加载的部分错误
-            if (details.error.includes('ERR_TUNNEL_CONNECTION_FAILED') && 
-                !details.url.includes('googlevideo.com')) {
+            if (details.error.includes('ERR_TUNNEL_CONNECTION_FAILED')) {
                 console.error('Proxy tunnel connection failed:', details.url)
             } else if (!details.error.includes('ERR_ABORTED')) {
                 console.error('Request error:', details.error, details.url)
@@ -135,6 +144,7 @@ class TabManager {
         contents.on('login', (event, details, authInfo, callback) => {
             if (authInfo.isProxy) {
                 event.preventDefault()
+                const proxyConfig = this.getProxyConfig()
                 callback(proxyConfig.username, proxyConfig.password)
             }
         })
@@ -230,9 +240,6 @@ class TabManager {
             }
         })
 
-        if (options.navigate) {
-            
-        }
         console.log('createTab', options)   
         // view.webContents.openDevTools({ mode: 'detach' })
         const tabId = options.tabId || Date.now().toString()
@@ -386,7 +393,7 @@ class TabManager {
         })
 
         if (newProxyState) {
-            // 设置代理
+            const proxyConfig = this.getProxyConfig()
             session.setProxy({
                 mode: 'fixed_servers',
                 proxyRules: `http://${proxyConfig.host}:${proxyConfig.port}`,
