@@ -29,6 +29,8 @@ class TabManager {
             TAB_VIEW_STATE: 'tab-view-state'
         }
 
+        // 设置全局请求拦截
+        this._setupGlobalRequestInterception()
     }
 
     // 获取代理配置的辅助方法
@@ -126,18 +128,117 @@ class TabManager {
             this._updateTabState(tabId, { title }, this.MessageType.TAB_TITLE_UPDATED)
         })
 
-        // URL 变化
-        contents.on('did-navigate', (event, url) => {
-            this._updateTabState(tabId, { url }, this.MessageType.TAB_URL_UPDATED)
-        })
+        // // 监听网站图标更新
+        // contents.on('page-favicon-updated', (event, favicons) => {
+        //     // favicons 是一个数组，通常包含多个尺寸的图标
+        //     this._updateTabState(tabId, { 
+        //         favicon: favicons[0] || null 
+        //     }, this.MessageType.TAB_STATE_CHANGED)
+        // })
 
-        // 加载状态
+        // 获取标签状态
+        const tabState = this.tabStates.get(tabId)
+        
+        // 只为非导航页和非主页添加网站信息监听
+        if (!tabState?.isHome && !tabState?.navigate) {
+            // 监听导航完成事件，获取完整信息
+            contents.on('did-finish-load', () => {
+                // 获取网站的完整信息
+                Promise.all([
+                    contents.getTitle(),
+                    contents.getURL(),
+                    contents.executeJavaScript(`
+                        JSON.stringify({
+                            // 获取网站的 meta 信息
+                            description: document.querySelector('meta[name="description"]')?.content || '',
+                            keywords: document.querySelector('meta[name="keywords"]')?.content || '',
+                            // 获取网站的图标信息
+                            favicon: document.querySelector('link[rel="icon"]')?.href 
+                                || document.querySelector('link[rel="shortcut icon"]')?.href 
+                                || document.querySelector('link[rel="apple-touch-icon"]')?.href
+                                || window.location.origin + '/favicon.ico',
+                            // 获取 Open Graph 信息
+                            ogTitle: document.querySelector('meta[property="og:title"]')?.content,
+                            ogDescription: document.querySelector('meta[property="og:description"]')?.content,
+                            ogImage: document.querySelector('meta[property="og:image"]')?.content,
+                            // 获取所有可能的图标
+                            icons: Array.from(document.querySelectorAll('link[rel*="icon"]')).map(link => ({
+                                href: link.href,
+                                rel: link.rel,
+                                sizes: link.sizes?.value || ''
+                            }))
+                        })
+                    `)
+                ]).then(([title, url, metaDataStr]) => {
+                    const metaData = JSON.parse(metaDataStr)
+                    
+                    // 更新标签状态
+                    const updatedState = {
+                        title: title,
+                        url: url,
+                        loading: false,
+                        metaData: {
+                            ...metaData,
+                            timestamp: Date.now()
+                        }
+                    }
+
+                    // 更新缓存的标签属性
+                    const currentState = this.tabStates.get(tabId) || {}
+                    this.tabStates.set(tabId, {
+                        ...currentState,
+                        ...updatedState,
+                        favicon: metaData.favicon,
+                        icons: metaData.icons,
+                        lastUpdated: Date.now()
+                    })
+
+                    // 发送状态更新消息
+                    this._sendMessage(this.MessageType.TAB_STATE_CHANGED, this.tabStates.get(tabId))
+
+                }).catch(error => {
+                    console.error('Error getting page info:', error)
+                    // 即使出错也要更新状态
+                    this._updateTabState(tabId, {
+                        error: {
+                            code: 'META_FETCH_ERROR',
+                            description: error.message
+                        },
+                        loading: false
+                    }, this.MessageType.TAB_STATE_CHANGED)
+                })
+            })
+        }
+
+        // 监听加载状态
         contents.on('did-start-loading', () => {
             this._updateTabState(tabId, { loading: true }, this.MessageType.TAB_LOADING_STATE)
         })
 
         contents.on('did-stop-loading', () => {
             this._updateTabState(tabId, { loading: false }, this.MessageType.TAB_LOADING_STATE)
+        })
+
+        // 监听导航状态变化
+        contents.on('did-navigate', (event, url, httpResponseCode, httpStatusText) => {
+            this._updateTabState(tabId, {
+                url,
+                httpStatus: {
+                    code: httpResponseCode,
+                    text: httpStatusText
+                }
+            }, this.MessageType.TAB_URL_UPDATED)
+        })
+
+        // 错误处理
+        contents.on('did-fail-load', (event, errorCode, errorDescription) => {
+            this._updateTabState(tabId, {
+                error: {
+                    code: errorCode,
+                    description: errorDescription
+                },
+                loading: false
+            }, this.MessageType.TAB_STATE_CHANGED)
         })
 
         // 代理认证
@@ -166,13 +267,6 @@ class TabManager {
         // 证书错误处理
         contents.session.setCertificateVerifyProc((request, callback) => {
             callback(0) // 允许所有证书
-        })
-
-        contents.on('did-fail-load', (event, errorCode, errorDescription) => {
-            this._updateViewState(tabId, this.ViewState.ERROR, {
-                errorCode,
-                errorDescription
-            })
         })
 
         contents.on('crashed', () => {
@@ -205,6 +299,14 @@ class TabManager {
         // Clear event listeners
         contents.once('destroyed', () => {
             clearInterval(memoryInterval)
+        })
+
+        // 添加导航完成事件来更新 URL
+        contents.on('did-finish-navigation', (event, url) => {
+            if (!event.isMainFrame) return // 只处理主框架的导航
+            
+            // 导航完成时发送 URL 更新事件
+            this._updateTabState(tabId, { url }, this.MessageType.TAB_URL_UPDATED)
         })
     }
 
@@ -240,7 +342,7 @@ class TabManager {
             }
         })
 
-        console.log('createTab', options)   
+        // console.log('createTab', options)   
         // view.webContents.openDevTools({ mode: 'detach' })
         const tabId = options.tabId || Date.now().toString()
         this.tabs.set(tabId, view)
@@ -687,6 +789,61 @@ class TabManager {
     // 获取当前活动标签
     getActiveTabId() {
         return this.activeTabId
+    }
+
+    // 添加新的私有方法来设置全局请求拦截
+    _setupGlobalRequestInterception() {
+        const handleNewWindow = (webContents) => {
+            // 只处理新窗口打开的情况
+            webContents.setWindowOpenHandler(({ url, frameName, features }) => {
+                // 忽略 devtools 和特殊窗口
+                // console.log('url', url, frameName, features)
+                if (url === 'about:blank') {
+                    return { action: 'deny' }
+                }
+                if (frameName === '_blank' && features.indexOf('nodeIntegration') !== -1) {
+                    return { action: 'allow' }
+                }
+
+                // 发送创建标签命令并阻止新窗口
+                this.topView.webContents.send('tab-command', {
+                    action: 'addTab',
+                    payload: {
+                        title: 'New Tab',
+                        // id: uuidv4(),
+                        url: url,
+                        isApp: false,
+                        isHome: false,
+                        navigate: false,
+                        isNewWindow: true
+                    }
+                })
+                return { action: 'deny' }
+            })
+        }
+
+        // 监听新创建的 webContents
+        require('electron').app.on('web-contents-created', (event, webContents) => {
+            handleNewWindow(webContents)
+        })
+
+        // 为现有标签设置拦截
+        this.tabs.forEach(view => {
+            handleNewWindow(view.webContents)
+        })
+    }
+
+    // 添加辅助方法检查是否同域名
+    _isSameDomain(url1, url2) {
+        try {
+            if (!url1 || !url2) return false
+            const domain1 = new URL(url1).hostname
+            const domain2 = new URL(url2).hostname
+            return domain1 === domain2
+        } catch (e) {
+            console.error('Error comparing domains:', e)
+            return false
+        }
     }
 }
 
