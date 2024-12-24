@@ -4,7 +4,7 @@ const TabManager = require('./windows/tabs')
 const { autoUpdater } = require('electron-updater')
 const LayoutManager = require('./windows/layout')
 const { getConfigLoader, getSystemConfig } = require('./config')
-
+const { BrowserWindowManager } = require('./windows/browser')
 // 初始化应用名称
 app.name = 'AIMetar'
 app.setName('AIMetar')
@@ -27,7 +27,7 @@ class Application {
   constructor() {
     this.mainWindow = null
     this.tabManager = null
-
+    this.browserWindowManager = new BrowserWindowManager()
     // 禁用 FIDO 和蓝牙相关功能
     app.commandLine.appendSwitch('disable-features', 'WebAuthentication,WebUSB,WebBluetooth')
 
@@ -132,6 +132,10 @@ class Application {
   }
 
   setupIPC() {
+    ipcMain.handle('open-url', (event, url, options = {}) => {
+      console.log('open-url', url, options)
+      return this.browserWindowManager.createWindow({ url, ...options })
+    })
     // 标签页操作
     ipcMain.handle('create-tab', (event, url, options = {}) => {
       console.log('create-tab', url, options)

@@ -37,6 +37,7 @@ contextBridge.exposeInMainWorld('jyiaiSDK', {
 
   // 浏览器功能 (原 browser 对象的内容)
   browser: {
+    openUrl: (url, options = {}) => ipcRenderer.invoke('open-url', url, options),
     // 标签页操作
     createTab: (url, options = {}) => ipcRenderer.invoke('create-tab', url, options),
     switchTab: (tabId) => ipcRenderer.invoke('switch-tab', tabId),
