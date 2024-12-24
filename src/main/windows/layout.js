@@ -1,4 +1,5 @@
 const { BrowserView } = require('electron')
+const TabManager = require('./tabs/TabManager')
 
 class LayoutManager {
     constructor(window, tabManager) {

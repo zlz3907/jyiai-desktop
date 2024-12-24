@@ -3,25 +3,27 @@ const path = require('path')
 const { SessionConfig } = require('./constants')
 
 class SessionManager {
-    constructor() {
-        this.sessions = new Map()
-    }
-
     createSession(useProxy = false) {
         const sessionId = `persist:tab_${useProxy ? 'proxy' : 'default'}`
-        if (this.sessions.has(sessionId)) {
-            return this.sessions.get(sessionId)
-        }
-
         const customSession = session.fromPartition(sessionId)
-        this._configureSession(customSession)
-        this.sessions.set(sessionId, customSession)
+        
+        // 配置 session（只在第一次创建时需要）
+        if (!customSession._configured) {
+            this._configureSession(customSession)
+            customSession._configured = true
+        }
+        
         return customSession
     }
 
     _configureSession(customSession) {
         // 基本配置
         customSession.setUserAgent(SessionConfig.USER_AGENT)
+
+        // 设置权限处理
+        customSession.setPermissionRequestHandler((webContents, permission, callback) => {
+            callback(SessionConfig.ALLOWED_PERMISSIONS.includes(permission))
+        })
 
         // 开发环境配置
         if (process.env.NODE_ENV === 'development') {
@@ -30,9 +32,6 @@ class SessionManager {
 
         // 配置本地资源访问
         this._configureLocalResources(customSession)
-
-        // 配置权限
-        this._configurePermissions(customSession)
     }
 
     _configureDevSession(customSession) {
@@ -45,8 +44,24 @@ class SessionManager {
     _configureLocalResources(customSession) {
         // 本地资源请求处理
         customSession.webRequest.onBeforeRequest((details, callback) => {
-            const url = new URL(details.url)
-            callback({ cancel: url.hostname !== 'localhost' })
+            // 允许 devtools 请求通过
+            if (details.url.startsWith('devtools://')) {
+                callback({})
+                return
+            }
+
+            try {
+                const url = new URL(details.url)
+                // 只处理 localhost 请求
+                if (url.hostname === 'localhost') {
+                    callback({})
+                } else {
+                    callback({ cancel: false })
+                }
+            } catch (error) {
+                // 如果 URL 解析失败，允许请求通过
+                callback({ cancel: false })
+            }
         })
 
         // 响应头配置
@@ -82,22 +97,8 @@ class SessionManager {
         return headers
     }
 
-    _configurePermissions(customSession) {
-        customSession.setPermissionRequestHandler((webContents, permission, callback) => {
-            callback(SessionConfig.ALLOWED_PERMISSIONS.includes(permission))
-        })
-    }
-
-    clearSession(sessionId) {
-        const customSession = this.sessions.get(sessionId)
-        if (customSession) {
-            customSession.clearCache()
-            customSession.clearStorageData()
-        }
-    }
-
     dispose() {
-        this.sessions.clear()
+        
     }
 }
 

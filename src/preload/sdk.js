@@ -50,6 +50,9 @@ contextBridge.exposeInMainWorld('jyiaiSDK', {
     navigateToUrl: (url) => ipcRenderer.invoke('navigate-to-url', url),
 
     // 事件监听
+    onIPCMsg: (callback) => {
+      ipcRenderer.on('ipc-msg', (event, data) => callback(data))
+    },
     onTabStateChanged: (callback) => {
       ipcRenderer.on('tab-state-changed', (event, data) => callback(data))
     },

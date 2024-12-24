@@ -12,12 +12,13 @@ class TabManager {
         this.topView = topView
         this.tabs = new Map()
         this.activeTabId = null
-        this.toolbarHeight = 72
+        this.toolbarHeight = 72  // 默认工具栏高度
         this.menuView = null
+        this.systemConfig = require('../../config').getSystemConfig()
 
         // 初始化各个管理器
         this.stateManager = new TabStateManager(topView)
-        this.eventHandler = new TabEventHandler(this.stateManager)
+        this.eventHandler = new TabEventHandler(this.stateManager, this.systemConfig)
     }
 
     // 创建新标签页
@@ -46,32 +47,49 @@ class TabManager {
                 url: options?.navigate ? 'about:blank' : validUrl,
                 title: options?.navigate ? 'about:blank' : 'New Tab',
                 navigate: options?.navigate,
-                isHome: options?.isHome
+                isHome: options?.isHome || false
             }, MessageType.TAB_CREATED)
 
             // 设置事件监听
             const contents = view.webContents
             this.eventHandler.setupEvents(contents, tabId)
             contents.setUserAgent(contents.getUserAgent() + ' JYIAIBrowser')
+            // 只在开发环境下打开 DevTools
+            // if (process.env.NODE_ENV === 'development') {
+            //     view.webContents.openDevTools({ mode: 'detach' })
+            // }
+
+            // 先移除其他标签页的显示
+            for (const [id, v] of this.tabs) {
+                if (id !== tabId) {
+                    this.containerView.removeChildView(v)
+                }
+            }
 
             // 添加新标签页到容器
             this.containerView.addChildView(view)
+            
+            // 更新新标签页的布局
             this.updateActiveViewBounds(options?.isHome)
 
-            // 加载URL
-            if (!options?.navigate) {
-                contents.loadURL(validUrl).catch(err => {
+            // 只在 URL 有效时加载
+            if (validUrl && validUrl !== 'about:blank') {
+                console.log('Loading URL:', validUrl)
+                contents.loadURL(validUrl, {
+                    timeout: 30000,
+                    extraHeaders: 'pragma: no-cache\n'
+                }).catch(err => {
                     console.error('Failed to load URL:', err)
+                    // 加载失败时更新状态
                     this.stateManager.updateState(tabId, {
                         error: {
-                            code: 'LOAD_ERROR',
+                            code: err.code || 'LOAD_ERROR',
                             description: err.message
                         },
                         loading: false
-                    })
+                    }, MessageType.TAB_STATE_CHANGED)
                 })
             }
-
             return tabId
         } catch (error) {
             console.error('Error creating tab:', error)
@@ -110,14 +128,16 @@ class TabManager {
         const view = this.tabs.get(tabId)
         if (!view) return
 
-        // 隐藏当前活动标签
+        // 移除当前活动标签
         if (this.activeTabId && this.activeTabId !== tabId) {
             const currentView = this.tabs.get(this.activeTabId)
             if (currentView) {
-                currentView.setBounds({ x: 0, y: 0, width: 0, height: 0 })
+                this.containerView.removeChildView(currentView)
             }
         }
 
+        // 添加新的活动标签
+        this.containerView.addChildView(view)
         // 更新活动标签
         this.activeTabId = tabId
         this.updateActiveViewBounds()
@@ -125,18 +145,28 @@ class TabManager {
     }
 
     // 更新视图边界
-    updateActiveViewBounds(isHome = false) {
+    updateActiveViewBounds() {
         if (!this.activeTabId) return
 
         const view = this.tabs.get(this.activeTabId)
         if (!view) return
 
+        const tabState = this.stateManager.getState(this.activeTabId)
+        const isHome = tabState?.isHome || false
+        console.log('updateActiveViewBounds', this.activeTabId, view.getBounds())
         const bounds = this.containerView.getBounds()
         view.setBounds({
             x: 0,
-            y: this.toolbarHeight,
+            y: this.toolbarHeight - (isHome ? 44 : 0),
             width: bounds.width,
-            height: bounds.height - this.toolbarHeight
+            height: bounds.height - this.toolbarHeight + (isHome ? 44 : 0)
+        })
+        const topBounds = this.topView.getBounds()
+        this.topView.setBounds({
+            x: 0,
+            y: 0,
+            width: bounds.width,
+            height: isHome ? 28 : 72
         })
     }
 
@@ -153,6 +183,7 @@ class TabManager {
                 allowFileAccessFromFiles: true,
                 webviewTag: true,
                 plugins: true,
+                javascript: true,
                 partition: `persist:tab_${options.useProxy ? 'proxy' : 'default'}`,
                 ...(options.navigate ? {
                     preload: path.join(__dirname, '../../../preload/sdk.js')
@@ -171,8 +202,7 @@ class TabManager {
             return url
         } catch (e) {
             if (url.startsWith('/')) {
-                const systemConfig = require('../../config').getSystemConfig()
-                const baseUrl = systemConfig.get('baseUrl')
+                const baseUrl = this.systemConfig.get('baseUrl')
                 return `${baseUrl}${url}`
             }
             return url.includes('://') ? url : `https://${url}`
@@ -191,6 +221,136 @@ class TabManager {
         
         // 清理会话
         SessionManager.dispose()
+    }
+
+    // 别名方法，保持向后兼容
+    switchTab(tabId) {
+        this.activateTab(tabId)
+    }
+
+    goBack() {
+        const activeTab = this.tabs.get(this.activeTabId)
+        if (activeTab?.webContents.canGoBack()) {
+            activeTab.webContents.goBack()
+        }
+    }
+
+    goForward() {
+        const activeTab = this.tabs.get(this.activeTabId)
+        if (activeTab?.webContents.canGoForward()) {
+            activeTab.webContents.goForward()
+        }
+    }
+
+    reload() {
+        const activeTab = this.tabs.get(this.activeTabId)
+        if (activeTab) {
+            activeTab.webContents.reload()
+        }
+    }
+
+    loadURL(url) {
+        const activeTab = this.tabs.get(this.activeTabId)
+        if (activeTab) {
+            activeTab.webContents.loadURL(url)
+        }
+    }
+
+    getTabInfo(tabId) {
+        return this.stateManager.getState(tabId)
+    }
+
+    // 创建标签菜单
+    createTabsMenu(x, y, menuUrl) {
+        return new Promise((resolve) => {
+            // 准备菜单数据
+            const menuData = {
+                tabs: this.stateManager.getAllStates(),
+                activeTabId: this.activeTabId
+            }
+
+            // 计算菜单高度
+            const itemHeight = 40  // 每个标签的高度
+            const headerHeight = 48  // 菜单头部高度
+            const footerHeight = 48  // 菜单底部高度（包含分隔线和新建标签按钮）
+            const separatorHeight = 1  // 分隔线高度
+            const padding = 16  // 上下padding总和
+            
+            // 计算标签列表的高度
+            const tabsHeight = menuData.tabs.length * itemHeight
+            
+            // 计算总高度（标签列表 + 头部 + 底部 + padding）
+            let totalHeight = tabsHeight + headerHeight + footerHeight + padding
+            
+            // 获取窗口高度并设置最大高度限制
+            const bounds = this.containerView.getBounds()
+            const maxHeight = bounds.height - this.toolbarHeight - 20  // 减去工具栏高度和一些边距
+            const menuHeight = Math.min(totalHeight, maxHeight)
+            const menuWidth = 300  // 菜单宽度
+
+            // 创建菜单视图
+            this.menuView = new WebContentsView({
+                webPreferences: {
+                    nodeIntegration: false,
+                    contextIsolation: true,
+                    webSecurity: true,
+                    sandbox: true,
+                    enableRemoteModule: true,
+                    preload: path.join(__dirname, '../../../preload/sdk.js'),
+                }
+            })
+
+            // 添加到容器
+            this.containerView.addChildView(this.menuView)
+
+            // 确保菜单不会超出窗口边界
+            const menuX = Math.min(x, bounds.width - menuWidth)
+            const menuY = Math.min(y, bounds.height - menuHeight)
+
+            // 设置菜单视图的位置和大小
+            this.menuView.setBounds({
+                x: menuX,
+                y: menuY,
+                width: menuWidth,
+                height: menuHeight
+            })
+
+            // 设置菜单页面加载完成的处理
+            this.menuView.webContents.once('did-finish-load', () => {
+                // 发送标签数据和尺寸信息到菜单页面
+                this.menuView.webContents.send('init-menu-data', {
+                    ...menuData,
+                    dimensions: {
+                        itemHeight,
+                        headerHeight,
+                        footerHeight,
+                        separatorHeight,
+                        padding,
+                        totalHeight,
+                        menuHeight,
+                        menuWidth
+                    }
+                })
+            })
+
+            // 加载菜单页面
+            this.menuView.webContents.loadURL(menuUrl).then(() => {
+                resolve()
+            }).catch(err => {
+                console.error('Failed to load menu:', err)
+                this.closeTabsMenu()
+                resolve()
+            })
+        })
+    }
+
+    // 关闭标签菜单
+    closeTabsMenu() {
+        if (this.menuView) {
+            this.containerView.removeChildView(this.menuView)
+            this.menuView.webContents.destroy()
+            this.menuView = null
+        }
     }
 }
 

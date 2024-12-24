@@ -1,9 +1,11 @@
 const { MessageType } = require('./constants')
 const ErrorHandler = require('../../utils/ErrorHandler')
+const { getSystemConfig } = require('../../config')
 
 class TabEventHandler {
     constructor(tabStateManager) {
         this.stateManager = tabStateManager
+        this.systemConfig = getSystemConfig()
     }
 
     setupEvents(contents, tabId) {
@@ -34,6 +36,15 @@ class TabEventHandler {
     }
 
     _setupLoadingEvents(contents, tabId) {
+        // 代理认证
+        contents.on('login', (event, details, authInfo, callback) => {
+            if (authInfo.isProxy) {
+                event.preventDefault()
+                const proxyConfig = this.systemConfig.getProxy()
+                callback(proxyConfig.username, proxyConfig.password)
+            }
+        })
+
         contents.on('did-start-loading', () => {
             this.stateManager.updateState(tabId, { 
                 loading: true,
@@ -42,6 +53,20 @@ class TabEventHandler {
         })
 
         contents.on('did-stop-loading', () => {
+            // 获取当前 URL
+            const url = contents.getURL()
+            
+            // // 检查是否是 YouTube 观看页面
+            // if (url.includes('youtube.com/watch')) {
+            //     // 延迟 500ms 后重新加载页面
+            //     setTimeout(() => {
+            //         if (!contents.isDestroyed()) {
+            //             contents.reload()
+            //         }
+            //     }, 500)
+            //     return
+            // }
+
             this.stateManager.updateState(tabId, { 
                 loading: false,
                 error: null

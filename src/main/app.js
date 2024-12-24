@@ -1,10 +1,11 @@
 const { app, BaseWindow, ipcMain, Menu, WebContentsView } = require('electron')
 const path = require('path')
-const TabManager = require('./windows/tabs')
+const TabManager = require('./windows/tabs/TabManager')
+// const TabManager = require('./windows/tabs')
 const { autoUpdater } = require('electron-updater')
-const LayoutManager = require('./windows/layout')
 const { getConfigLoader, getSystemConfig } = require('./config')
 const { BrowserWindowManager } = require('./windows/browser')
+
 // 初始化应用名称
 app.name = 'AIMetar'
 app.setName('AIMetar')
@@ -104,9 +105,9 @@ class Application {
     // 加载默认页面
     this.topView.webContents.loadURL(`${baseUrl}/desktop`)
 
-    // 初始化标签管理器，传入 contentView 和 topView
+    // 初始化标签管理器
     this.tabManager = new TabManager(this.mainWindow.contentView, this.topView)
-
+    
     const newBounds = this.mainWindow.getBounds()
     // 更新顶部视图大小
     this.topView.setBounds({
@@ -139,7 +140,6 @@ class Application {
     // 标签页操作
     ipcMain.handle('create-tab', (event, url, options = {}) => {
       console.log('create-tab', url, options)
-      
       return this.tabManager.createTab(url, options)
     })
 
@@ -153,37 +153,36 @@ class Application {
 
     // 导航操作
     ipcMain.handle('navigate-back', () => {
-      this.tabManager.goBack()
+      const activeTab = this.tabManager.tabs.get(this.tabManager.activeTabId)
+      if (activeTab?.webContents.canGoBack()) {
+        activeTab.webContents.goBack()
+      }
     })
 
     ipcMain.handle('navigate-forward', () => {
-      this.tabManager.goForward()
+      const activeTab = this.tabManager.tabs.get(this.tabManager.activeTabId)
+      if (activeTab?.webContents.canGoForward()) {
+        activeTab.webContents.goForward()
+      }
     })
 
     ipcMain.handle('navigate-reload', () => {
-      this.tabManager.reload()
+      const activeTab = this.tabManager.tabs.get(this.tabManager.activeTabId)
+      if (activeTab) {
+        activeTab.webContents.reload()
+      }
     })
 
     ipcMain.handle('navigate-to-url', (event, url) => {
-      this.tabManager.loadURL(url)
+      const activeTab = this.tabManager.tabs.get(this.tabManager.activeTabId)
+      if (activeTab) {
+        activeTab.webContents.loadURL(url)
+      }
     })
 
     // 获取标签信息
     ipcMain.handle('get-tab-info', (event, tabId) => {
-      return this.tabManager.getTabInfo(tabId)
-    })
-
-    // 添加布局相关的 IPC 处理
-    ipcMain.handle('layout:toggle-top', (event, show) => {
-      this.layoutManager.toggleView(this.layoutManager.getTopView(), show)
-    })
-
-    ipcMain.handle('layout:toggle-bottom', (event, show) => {
-      this.layoutManager.toggleView(this.layoutManager.getBottomView(), show)
-    })
-
-    ipcMain.handle('layout:load-content', (event, { topUrl, bottomUrl }) => {
-      this.layoutManager.loadContent(topUrl, bottomUrl)
+      return this.tabManager.stateManager.getState(tabId)
     })
 
     ipcMain.handle('show-tabs-menu', (event, { x, y, menuUrl }) => {

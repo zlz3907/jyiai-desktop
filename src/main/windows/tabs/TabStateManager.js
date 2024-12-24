@@ -20,6 +20,7 @@ class TabStateManager {
         updatedState.url = updatedState?.navigate ? '' : updatedState?.url
 
         this.tabStates.set(tabId, updatedState)
+        // console.log('updatedState', updatedState)
         this._sendMessage(messageType, updatedState)
     }
 
@@ -44,7 +45,7 @@ class TabStateManager {
             console.warn('TopView not available for message:', type)
             return
         }
-        this.topView.webContents.send(type, payload)
+        this.topView.webContents.send('ipc-msg', {type, payload})
     }
 
     // 清理所有状态
