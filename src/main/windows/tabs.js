@@ -1,6 +1,7 @@
 const { WebContentsView, Menu } = require('electron')
 const path = require('path')
 const { getSystemConfig } = require('../config')
+const ErrorHandler = require('../utils/ErrorHandler')
 
 class TabManager {
     constructor(containerView, topView) {
@@ -26,7 +27,9 @@ class TabManager {
             TAB_LOADING_STATE: 'tab-loading-state',
             TAB_STATE_CHANGED: 'tab-state-changed',
             TAB_CREATED: 'tab-created',
-            TAB_VIEW_STATE: 'tab-view-state'
+            TAB_VIEW_STATE: 'tab-view-state',
+            TAB_PROXY_STATUS: 'tab-proxy-status',
+            TAB_REQUEST_ERROR: 'tab-request-error'
         }
 
         // 设置全局请求拦截
@@ -36,13 +39,24 @@ class TabManager {
     // 获取代理配置的辅助方法
     getProxyConfig() {
         try {
-            return getSystemConfig().getProxy()
+            const config = getSystemConfig().getProxy()
+            // 确保配置包含所有必要字段
+            return {
+                enabled: true, // 如果调用这个方法，就假定要启用代理
+                host: config.host || 'localhost',
+                port: config.port || '7890',
+                username: config.username || '',
+                password: config.password || '',
+                ...config
+            }
         } catch (error) {
             console.warn('Failed to get proxy config:', error)
             return {
                 enabled: false,
                 host: 'localhost',
-                port: '7890'
+                port: '7890',
+                username: '',
+                password: ''
             }
         }
     }
@@ -64,6 +78,75 @@ class TabManager {
         // 设置基本配置
         customSession.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
 
+        // 根据环境变量设置权限
+        if (process.env.NODE_ENV === 'development') {
+            // 开发环境：允许所有权限
+            customSession.setPermissionRequestHandler((webContents, permission, callback) => {
+                console.log('Permission requested:', permission)
+                callback(true)
+            })
+        }
+
+        // 处理本地资源请求
+        customSession.webRequest.onBeforeRequest((details, callback) => {
+            const url = new URL(details.url)
+            
+            // 处理本地资源请求
+            if (url.hostname === 'localhost') {
+                callback({})
+                return
+            }
+            
+            callback({ cancel: false })
+        })
+
+        // 配置本地资源的响应头
+        customSession.webRequest.onHeadersReceived((details, callback) => {
+            const responseHeaders = {...details.responseHeaders}
+            
+            try {
+                const url = new URL(details.url)
+                
+                // 为本地资源添加缓存控制
+                if (url.hostname === 'localhost') {
+                    responseHeaders['Cache-Control'] = ['public, max-age=31536000']
+                    responseHeaders['Access-Control-Allow-Origin'] = ['*']
+                }
+                
+                // 为图片和字体文件添加特殊处理
+                if (details.resourceType === 'image' || details.resourceType === 'font') {
+                    responseHeaders['Access-Control-Allow-Origin'] = ['*']
+                    responseHeaders['Access-Control-Allow-Headers'] = ['*']
+                    responseHeaders['Access-Control-Allow-Methods'] = ['GET']
+                }
+            } catch (error) {
+                console.error('Error processing URL:', error)
+            }
+            
+            callback({ responseHeaders })
+        })
+
+        // 配置允许加载本地资源
+        customSession.setPermissionRequestHandler((webContents, permission, callback) => {
+            const allowedPermissions = [
+                'media',
+                'mediaKeySystem',
+                'geolocation',
+                'notifications',
+                'fullscreen',
+                'pointerLock',
+                'local-fonts'  // 允许访问本地字体
+            ]
+            callback(allowedPermissions.includes(permission) || permission === 'local-fonts')
+        })
+
+        // 配置缓存存储
+        customSession.protocol.registerFileProtocol('local-resource', (request, callback) => {
+            const url = request.url.substr(15)
+            callback({ path: path.normalize(`${__dirname}/../../${url}`) })
+        })
+
+        // 配置代理
         if (useProxy) {
             this._configureProxy(customSession)
         }
@@ -74,50 +157,39 @@ class TabManager {
     // 配置代理
     _configureProxy(session) {
         const proxyConfig = this.getProxyConfig()
+        if (!proxyConfig.enabled) {
+            console.log('Proxy is disabled, skipping proxy configuration')
+            return
+        }
+
         const proxySettings = {
             mode: 'fixed_servers',
             proxyRules: `http://${proxyConfig.host}:${proxyConfig.port}`,
-            proxyBypassRules: '<local>'
+            proxyBypassRules: '<local>;localhost;127.0.0.1;*.local',
+            pacScript: '',
+            // proxyRoutingRules: {
+            //     'ws': `http://${proxyConfig.host}:${proxyConfig.port}`,  // 支持 WebSocket
+            //     'wss': `http://${proxyConfig.host}:${proxyConfig.port}`  // 支持 WebSocket over SSL
+            // }
         }
 
-        session.setProxy(proxySettings)
-        
-        console.log('setProxy', proxyConfig)
-
-        // 添加代理认证头
+        // 设置代理认证
         session.webRequest.onBeforeSendHeaders((details, callback) => {
-            const auth = Buffer.from(`${proxyConfig.username}:${proxyConfig.password}`).toString('base64')
-            const headers = {
-                ...details.requestHeaders,
-                'Proxy-Authorization': `Basic ${auth}`,
-                'Connection': 'keep-alive'
+            const headers = {...details.requestHeaders}
+            
+            if (proxyConfig.username && proxyConfig.password) {
+                const auth = Buffer.from(`${proxyConfig.username}:${proxyConfig.password}`).toString('base64')
+                headers['Proxy-Authorization'] = `Basic ${auth}`
             }
-
+            
             callback({ requestHeaders: headers })
         })
 
-        // 错误处理
-        session.webRequest.onErrorOccurred((details) => {
-            if (details.error.includes('ERR_TUNNEL_CONNECTION_FAILED')) {
-                console.error('Proxy tunnel connection failed:', details.url)
-            } else if (!details.error.includes('ERR_ABORTED')) {
-                console.error('Request error:', details.error, details.url)
-            }
-        })
-
-        // 添加响应头处理
-        session.webRequest.onHeadersReceived((details, callback) => {
-            const responseHeaders = {...details.responseHeaders}
-            
-            // 处理 YouTube 视频响应
-            if (details.url.includes('googlevideo.com')) {
-                // 确保允许范围请求
-                responseHeaders['Accept-Ranges'] = ['bytes']
-                // 允许跨域
-                responseHeaders['Access-Control-Allow-Origin'] = ['*']
-            }
-
-            callback({ responseHeaders })
+        // 设置代理配置
+        session.setProxy(proxySettings).then(() => {
+            console.log('Proxy configured successfully')
+        }).catch(err => {
+            console.error('Failed to set proxy:', err)
         })
     }
 
@@ -210,16 +282,7 @@ class TabManager {
             })
         }
 
-        // 监听加载状态
-        contents.on('did-start-loading', () => {
-            this._updateTabState(tabId, { loading: true }, this.MessageType.TAB_LOADING_STATE)
-        })
-
-        contents.on('did-stop-loading', () => {
-            this._updateTabState(tabId, { loading: false }, this.MessageType.TAB_LOADING_STATE)
-        })
-
-        // 监听导航状态变化
+        // 监听导航状态变化 - 更新处理方式
         contents.on('did-navigate', (event, url, httpResponseCode, httpStatusText) => {
             this._updateTabState(tabId, {
                 url,
@@ -230,8 +293,34 @@ class TabManager {
             }, this.MessageType.TAB_URL_UPDATED)
         })
 
-        // 错误处理
-        contents.on('did-fail-load', (event, errorCode, errorDescription) => {
+        // 添加导航完成事件来更新 URL
+        contents.on('did-finish-navigation', (event, url) => {
+            if (!event.isMainFrame) return // 只处理主框架的导航
+            
+            // 导航完成时发送 URL 更新事件
+            this._updateTabState(tabId, { url }, this.MessageType.TAB_URL_UPDATED)
+        })
+
+        // 改进加载状态处理
+        contents.on('did-start-loading', () => {
+            this._updateTabState(tabId, { 
+                loading: true,
+                error: null
+            }, this.MessageType.TAB_LOADING_STATE)
+        })
+
+        contents.on('did-stop-loading', () => {
+            this._updateTabState(tabId, { 
+                loading: false,
+                error: null
+            }, this.MessageType.TAB_LOADING_STATE)
+        })
+        
+
+        // 添加导航错误处理
+        contents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+            if (!isMainFrame) return
+
             this._updateTabState(tabId, {
                 error: {
                     code: errorCode,
@@ -251,30 +340,30 @@ class TabManager {
         })
 
         // 权限请求处理
-        contents.session.setPermissionRequestHandler((webContents, permission, callback) => {
-            const allowedPermissions = [
-                'clipboard-read',
-                'clipboard-write',
-                'pointerLock',
-                'fullscreen',
-                'media',
-                'geolocation',
-                'notifications'
-            ]
-            callback(allowedPermissions.includes(permission))
-        })
+        // contents.session.setPermissionRequestHandler((webContents, permission, callback) => {
+        //     const allowedPermissions = [
+        //         'clipboard-read',
+        //         'clipboard-write',
+        //         'pointerLock',
+        //         'fullscreen',
+        //         'media',
+        //         'geolocation',
+        //         'notifications'
+        //     ]
+        //     callback(allowedPermissions.includes(permission))
+        // })
 
         // 证书错误处理
         contents.session.setCertificateVerifyProc((request, callback) => {
             callback(0) // 允许所有证书
         })
 
-        contents.on('crashed', () => {
-            this._updateViewState(tabId, this.ViewState.ERROR, {
-                errorCode: 'CRASHED',
-                errorDescription: 'Page crashed'
-            })
-        })
+        // contents.on('crashed', () => {
+        //     this._updateViewState(tabId, this.ViewState.ERROR, {
+        //         errorCode: 'CRASHED',
+        //         errorDescription: 'Page crashed'
+        //     })
+        // })
 
         // Fix memory monitoring using process
         const memoryInterval = setInterval(() => {
@@ -301,13 +390,46 @@ class TabManager {
             clearInterval(memoryInterval)
         })
 
-        // 添加导航完成事件来更新 URL
-        contents.on('did-finish-navigation', (event, url) => {
-            if (!event.isMainFrame) return // 只处理主框架的导航
-            
-            // 导航完成时发送 URL 更新事件
-            this._updateTabState(tabId, { url }, this.MessageType.TAB_URL_UPDATED)
+
+        // 只在发生错误时记录日志
+        contents.session.webRequest.onErrorOccurred((details) => {
+            // 处理代理相关错误
+            if (details.error.includes('ERR_PROXY_') || 
+                details.error.includes('ERR_TUNNEL_')) {
+                const errorResult = ErrorHandler.handleProxyError(details)
+                
+                // 更新标签状态以显示代理错误
+                if (errorResult.isProxyError) {
+                    this._updateTabState(tabId, {
+                        error: {
+                            type: 'PROXY_ERROR',
+                            code: errorResult.errorType,
+                            details: errorResult.details
+                        },
+                        loading: false
+                    }, this.MessageType.TAB_REQUEST_ERROR)
+                }
+            } else {
+                // 处理其他浏览器错误
+                const errorResult = ErrorHandler.handleBrowserError(details)
+                
+                this._updateTabState(tabId, {
+                    error: {
+                        type: 'BROWSER_ERROR',
+                        code: errorResult.errorType,
+                        details: errorResult.details
+                    },
+                    loading: false
+                }, this.MessageType.TAB_REQUEST_ERROR)
+            }
         })
+
+        // 移除之前的 onBeforeRequest 和 onCompleted 监听器的日志输出
+        // contents.session.webRequest.onBeforeRequest((details, callback) => {
+        //     // 打印请求URL
+        //     // console.log('Request URL:', details.url)
+        //     callback({ cancel: false });
+        // });
     }
 
     // 私有方法：更新标签状态
@@ -326,25 +448,54 @@ class TabManager {
 
     // 公共方法
     createTab(url = 'about:blank', options = {}) {
-        // const targetUrl = url || 'http://localhost:59001/desktop/links'
-        // console.log('createTab', url)
+        // URL 验证和处理
+        const validUrl = (() => {
+            if (!url || url === '') {
+                return 'about:blank'
+            }
+            try {
+                // 尝试解析 URL
+                new URL(url)
+                return url
+            } catch (e) {
+                // 如果不是有效的 URL，检查是否是相对路径
+                if (url.startsWith('/')) {
+                    const systemConfig = getSystemConfig()
+                    const baseUrl = systemConfig.get('baseUrl')
+                    return `${baseUrl}${url}`
+                }
+                // 如果不是相对路径，添加 https://
+                if (!url.includes('://')) {
+                    return `https://${url}`
+                }
+                return 'about:blank'
+            }
+        })()
+
         const customSession = this._createCustomSession(options.useProxy)
         const view = new WebContentsView({
             webPreferences: {
                 nodeIntegration: options.navigate ? false : true,
                 contextIsolation: options.navigate ? true : false,
                 session: customSession,
-                enableBlinkFeatures: '',
-                disableBlinkFeatures: 'WebAuthentication,WebUSB,WebBluetooth',
+                webSecurity: true,
+                allowRunningInsecureContent: false,
+                experimentalFeatures: true,
+                // 添加本地资源访问相关配置
+                allowFileAccessFromFiles: true,
+                webviewTag: true,
+                // 媒体相关配置
+                plugins: true,
+                // 配置缓存
+                partition: `persist:tab_${options.useProxy ? 'proxy' : 'default'}`,
                 ...(options.navigate ? {
                     preload: path.join(__dirname, '../../preload/sdk.js')
                 } : {})
             }
         })
 
-        // console.log('createTab', options)   
-        // view.webContents.openDevTools({ mode: 'detach' })
         const tabId = options.tabId || Date.now().toString()
+        // console.log('createTab', options, view)
         this.tabs.set(tabId, view)
         
         // 设置为活动标签页
@@ -352,7 +503,7 @@ class TabManager {
         
         this._updateTabState(tabId, {
             useProxy: options.useProxy || false,
-            url: options?.navigate ? 'about:blank' : url,
+            url: options?.navigate ? 'about:blank' : validUrl,
             title: options?.navigate ? 'about:blank' : 'New Tab',
             navigate: options?.navigate,
             isHome: options?.isHome
@@ -373,16 +524,34 @@ class TabManager {
         this.containerView.addChildView(view)
         this.updateActiveViewBounds(options?.isHome)
 
-        console.log('createTab', url, 'activeTabId:', this.activeTabId)
-        contents.loadURL(url, {
-            timeout: 30000,
-            extraHeaders: 'pragma: no-cache\n'
-        }).catch(err => {
-            console.error('Failed to load URL:', err)
+        // 只在 URL 有效时加载
+        if (validUrl && validUrl !== 'about:blank') {
+            console.log('Loading URL:', validUrl)
+            contents.loadURL(validUrl, {
+                timeout: 30000,
+                extraHeaders: 'pragma: no-cache\n'
+            }).catch(err => {
+                console.error('Failed to load URL:', err)
+                // 加载失败时更新状态
+                this._updateTabState(tabId, {
+                    error: {
+                        code: err.code || 'LOAD_ERROR',
+                        description: err.message
+                    },
+                    loading: false
+                }, this.MessageType.TAB_STATE_CHANGED)
+            })
+        }
+
+        // 添加本地资源错误处理
+        contents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+            if (errorCode === -113) { // ERR_CACHE_MISS
+                // 重新加载资源
+                contents.reload()
+            }
         })
 
-        // console.log('send createTab', this.tabStates.get(tabId))
-        // this._sendMessage(this.MessageType.TAB_CREATED, this.tabStates.get(tabId))
+        return tabId
     }
 
     updateActiveViewBounds() {
@@ -611,25 +780,6 @@ class TabManager {
         })
     }
 
-    _setupSecurityPolicies(contents) {
-        // CSP 策略
-        contents.session.webRequest.onHeadersReceived((details, callback) => {
-            callback({
-                responseHeaders: {
-                    ...details.responseHeaders,
-                    'Content-Security-Policy': ['default-src \'self\'']
-                }
-            })
-        })
-
-        // 限制新窗口打开
-        contents.setWindowOpenHandler(({ url }) => {
-            // 在新标签页中打开而不是新窗口
-            this.createTab(url)
-            return { action: 'deny' }
-        })
-    }
-
     // 创建自定义弹出菜单
     createTabsMenu(x, y, menuUrl) {
         // 如果已有菜单，先关闭
@@ -646,7 +796,7 @@ class TabManager {
             }
 
             // 计算菜单高度
-            const itemHeight = 40  // 每个标签项的高度
+            const itemHeight = 40  // 每标签的高度
             const headerHeight = 48  // 菜单头部高度
             const footerHeight = 48  // 菜单底部高度（包含分隔线和新建标签按钮）
             const separatorHeight = 1  // 分隔线高度
@@ -695,19 +845,6 @@ class TabManager {
             // 设置菜单页面加载完成的处理
             this.menuView.webContents.once('did-finish-load', () => {
                 // 发送标签数据和尺寸信息到菜单页面
-                console.log('init-menu-data', {
-                    ...menuData,
-                    dimensions: {
-                        itemHeight,
-                        headerHeight,
-                        footerHeight,
-                        separatorHeight,
-                        padding,
-                        totalHeight,
-                        menuHeight,
-                        menuWidth
-                    }
-                })
                 this.menuView.webContents.send('init-menu-data', {
                     ...menuData,
                     dimensions: {
@@ -844,6 +981,34 @@ class TabManager {
             console.error('Error comparing domains:', e)
             return false
         }
+    }
+
+    // 可选：添加获取代理状态的方法
+    getTabProxyStatus(tabId) {
+        const state = this.tabStates.get(tabId);
+        return state?.proxyStatus || {
+            enabled: false,
+            used: false,
+            info: null,
+            timestamp: null,
+            error: null
+        };
+    }
+
+    // 添加缓存清理方法
+    clearBrowserCache() {
+        const sessions = [
+            session.fromPartition('persist:tab_proxy'),
+            session.fromPartition('persist:tab_default')
+        ]
+        
+        return Promise.all(sessions.map(session => 
+            session.clearCache()
+        )).then(() => {
+            console.log('Cache cleared successfully')
+        }).catch(err => {
+            console.error('Failed to clear cache:', err)
+        })
     }
 }
 
