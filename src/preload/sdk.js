@@ -8,6 +8,12 @@ contextBridge.exposeInMainWorld('jyiaiSDK', {
   // 基础信息
   version: SDK_VERSION,
   
+  // 存储功能
+  store: {
+    setItem: (key, value) => ipcRenderer.invoke('store:set', key, value),
+    getItem: (key) => ipcRenderer.invoke('store:get', key)
+  },
+
   // 窗口管理
   window: {
     openUrl: (url, options = {}) => {
@@ -69,7 +75,7 @@ contextBridge.exposeInMainWorld('jyiaiSDK', {
     },
 
     // 菜单
-    showTabsMenu: (x, y, menuUrl) => ipcRenderer.invoke('show-tabs-menu', { x, y, menuUrl }),
+    showTabsMenu: (postion, menuUrl, payload) => ipcRenderer.invoke('show-tabs-menu', { postion, menuUrl, payload }),
     closeTabsMenu: () => ipcRenderer.send('menu-close'),
     onMenuData: (callback) => {
       ipcRenderer.on('init-menu-data', (event, data) => callback(data))

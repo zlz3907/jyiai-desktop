@@ -5,6 +5,7 @@ const TabManager = require('./windows/tabs/TabManager')
 const { autoUpdater } = require('electron-updater')
 const { getConfigLoader, getSystemConfig } = require('./config')
 const { BrowserWindowManager } = require('./windows/browser')
+const store = require('./utils/store')
 
 // 初始化应用名称
 app.name = 'AIMetar'
@@ -106,7 +107,7 @@ class Application {
     this.topView.webContents.loadURL(`${baseUrl}/desktop`)
 
     // 初始化标签管理器
-    this.tabManager = new TabManager(this.mainWindow.contentView, this.topView)
+    this.tabManager = new TabManager(this.mainWindow, this.topView)
     
     const newBounds = this.mainWindow.getBounds()
     // 更新顶部视图大小
@@ -185,12 +186,12 @@ class Application {
       return this.tabManager.stateManager.getState(tabId)
     })
 
-    ipcMain.handle('show-tabs-menu', (event, { x, y, menuUrl }) => {
+    ipcMain.handle('show-tabs-menu', (event, { postion, menuUrl, payload }) => {
       if (!menuUrl) {
         console.error('Menu URL is required')
         return Promise.reject(new Error('Menu URL is required'))
       }
-      return this.tabManager.createTabsMenu(x, y, menuUrl)
+      return this.tabManager.createTabsMenu(postion, menuUrl, payload)
     })
 
     ipcMain.on('menu-close', () => {
@@ -202,6 +203,15 @@ class Application {
     ipcMain.on('tab-command', (event, command) => {
       this.topView.webContents.send('tab-command', command)
     })
+
+    // 处理存储相关IPC
+    ipcMain.handle('store:set', async (event, key, value) => {
+      store.setItem(key, value);
+    });
+
+    ipcMain.handle('store:get', async (event, key) => {
+      return store.getItem(key);
+    });
   }
 
   start() {

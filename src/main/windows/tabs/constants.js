@@ -14,7 +14,8 @@ exports.MessageType = {
     TAB_CREATED: 'tab-created',
     TAB_VIEW_STATE: 'tab-view-state',
     TAB_PROXY_STATUS: 'tab-proxy-status',
-    TAB_REQUEST_ERROR: 'tab-request-error'
+    TAB_REQUEST_ERROR: 'tab-request-error',
+    TAB_MENU_STATE: 'tab-menu-state'
 }
 
 // Session 配置常量

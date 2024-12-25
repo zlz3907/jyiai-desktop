@@ -1,4 +1,4 @@
-const { WebContentsView } = require('electron')
+const { WebContentsView, BrowserWindow } = require('electron')
 const path = require('path')
 const SessionManager = require('./SessionManager')
 const ProxyManager = require('./ProxyManager')
@@ -7,14 +7,16 @@ const TabEventHandler = require('./TabEventHandler')
 const { MessageType } = require('./constants')
 
 class TabManager {
-    constructor(containerView, topView) {
-        this.containerView = containerView
+    constructor(mainWindow, topView) {
+        this.mainWindow = mainWindow
+        this.containerView = mainWindow.contentView
         this.topView = topView
         this.tabs = new Map()
         this.activeTabId = null
         this.toolbarHeight = 72  // 默认工具栏高度
         this.menuView = null
         this.systemConfig = require('../../config').getSystemConfig()
+        this.menuPopup = null  // 添加 menuPopup 属性
 
         // 初始化各个管理器
         this.stateManager = new TabStateManager(topView)
@@ -55,9 +57,9 @@ class TabManager {
             this.eventHandler.setupEvents(contents, tabId)
             contents.setUserAgent(contents.getUserAgent() + ' JYIAIBrowser')
             // 只在开发环境下打开 DevTools
-            // if (process.env.NODE_ENV === 'development') {
-            //     view.webContents.openDevTools({ mode: 'detach' })
-            // }
+            if (process.env.NODE_ENV === 'development') {
+                view.webContents.openDevTools({ mode: 'detach' })
+            }
 
             // 先移除其他标签页的显示
             for (const [id, v] of this.tabs) {
@@ -74,7 +76,7 @@ class TabManager {
 
             // 只在 URL 有效时加载
             if (validUrl && validUrl !== 'about:blank') {
-                console.log('Loading URL:', validUrl)
+                // console.log('Loading URL:', validUrl)
                 contents.loadURL(validUrl, {
                     timeout: 30000,
                     extraHeaders: 'pragma: no-cache\n'
@@ -224,6 +226,12 @@ class TabManager {
         
         // 清理会话
         SessionManager.dispose()
+        
+        // 清理菜单窗口
+        if (this.menuPopup) {
+            this.menuPopup.destroy()
+            this.menuPopup = null
+        }
     }
 
     // 别名方法，保持向后兼容
@@ -263,36 +271,25 @@ class TabManager {
         return this.stateManager.getState(tabId)
     }
 
-    // 创建标签菜单
-    createTabsMenu(x, y, menuUrl) {
-        return new Promise((resolve) => {
-            // 准备菜单数据
-            const menuData = {
-                tabs: this.stateManager.getAllStates(),
-                activeTabId: this.activeTabId
-            }
-
-            // 计算菜单高度
-            const itemHeight = 40  // 每个标签的高度
-            const headerHeight = 48  // 菜单头部高度
-            const footerHeight = 48  // 菜单底部高度（包含分隔线和新建标签按钮）
-            const separatorHeight = 1  // 分隔线高度
-            const padding = 16  // 上下padding总和
+    createTabsMenu(position, menuUrl, payload = {}) {
+        const {x, y, width, height} = this.mainWindow.getBounds()
+        const _bounds = {
+            width: position.width,
+            height: Math.min(height - y, position.height),
+            x: x + width - position.width - 8,
+            y: y + position.y
+        }
+        if (!this.menuPopup) {
+            // 首次创建菜单窗口
             
-            // 计算标签列表的高度
-            const tabsHeight = menuData.tabs.length * itemHeight
-            
-            // 计算总高度（标签列表 + 头部 + 底部 + padding）
-            let totalHeight = tabsHeight + headerHeight + footerHeight + padding
-            
-            // 获取窗口高度并设置最大高度限制
-            const bounds = this.containerView.getBounds()
-            const maxHeight = bounds.height - this.toolbarHeight - 20  // 减去工具栏高度和一些边距
-            const menuHeight = Math.min(totalHeight, maxHeight)
-            const menuWidth = 300  // 菜单宽度
-
-            // 创建菜单视图
-            this.menuView = new WebContentsView({
+            this.menuPopup = new BrowserWindow({
+                ..._bounds,
+                frame: false,
+                transparent: true,
+                hasShadow: true,
+                type: 'popup',
+                parent: this.mainWindow,
+                show: false,  // 初始不显示
                 webPreferences: {
                     nodeIntegration: false,
                     contextIsolation: true,
@@ -303,56 +300,60 @@ class TabManager {
                 }
             })
 
-            // 添加到容器
-            this.containerView.addChildView(this.menuView)
+            // 首次加载URL
+            this.menuPopup.loadURL(menuUrl)
 
-            // 确保菜单不会超出窗口边界
-            const menuX = Math.min(x, bounds.width - menuWidth)
-            const menuY = Math.min(y, bounds.height - menuHeight)
-
-            // 设置菜单视图的位置和大小
-            this.menuView.setBounds({
-                x: menuX,
-                y: menuY,
-                width: menuWidth,
-                height: menuHeight
+            // 设置加载完成的处理
+            this.menuPopup.webContents.on('did-finish-load', () => {
+                this.updateTabsMenu()
             })
 
-            // 设置菜单页面加载完成的处理
-            this.menuView.webContents.once('did-finish-load', () => {
-                // 发送标签数据和尺寸信息到菜单页面
-                this.menuView.webContents.send('init-menu-data', {
-                    ...menuData,
-                    dimensions: {
-                        itemHeight,
-                        headerHeight,
-                        footerHeight,
-                        separatorHeight,
-                        padding,
-                        totalHeight,
-                        menuHeight,
-                        menuWidth
-                    }
-                })
-            })
-
-            // 加载菜单页面
-            this.menuView.webContents.loadURL(menuUrl).then(() => {
-                resolve()
-            }).catch(err => {
-                console.error('Failed to load menu:', err)
+            // 监听窗口失去焦点时自动隐藏
+            this.menuPopup.on('blur', () => {
                 this.closeTabsMenu()
-                resolve()
             })
-        })
+
+            if (process.env.NODE_ENV === 'development') {
+                // this.menuPopup.webContents.openDevTools({mode: 'detach'})
+            }
+        } else {
+            // 如果菜单已存在，更新位置
+            this.menuPopup.setBounds({
+                ..._bounds
+            })
+        }
+
+        // 更新数据并显示
+        this.updateTabsMenu()
+        this.menuPopup.show()
+        this.topView.webContents.send('ipc-msg', {type: MessageType.TAB_MENU_STATE, payload: {active: true}})
+
     }
 
-    // 关闭标签菜单
+    // 新增更新菜单数据的方法
+    updateTabsMenu() {
+        if (!this.menuPopup) return
+
+        const menuData = {
+            tabs: this.stateManager.getAllStates(),
+            activeTabId: this.activeTabId,
+            dimensions: {
+                menuHeight: 300,
+                menuWidth: 300
+            }
+        }
+        
+        this.menuPopup.webContents.send('init-menu-data', menuData)
+    }
+
+    // 修改关闭方法
     closeTabsMenu() {
-        if (this.menuView) {
-            this.containerView.removeChildView(this.menuView)
-            this.menuView.webContents.destroy()
-            this.menuView = null
+        
+        if (this.menuPopup) {
+            // this.menuPopup.blur()
+            this.menuPopup.hide()  // 只是隐藏而不销毁
+            this.activateTab(this.activeTabId)
+            this.topView.webContents.send('ipc-msg', {type: MessageType.TAB_MENU_STATE, payload: {active: false}})
         }
     }
 }

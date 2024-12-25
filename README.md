@@ -1,28 +1,66 @@
-# JyiAI Desktop
+# AIMetar Browser
 
-A modern AI assistant desktop client powered by Large Language Models, built with Electron.
+AIMetar is a modern, Electron-based web browser with advanced tab management and proxy support.
 
-<p align="center">
-  <img src="docs/images/logo.png" alt="JyiAI Desktop" width="200"/>
-</p>
+## Features
 
-## ✨ Features
+- **Advanced Tab Management**
+  - Multi-tab browsing with dynamic tab creation and switching
+  - Tab state management and persistence
+  - Custom tab menu system
+  - Tab-specific proxy settings
 
-- 🚀 Built with modern Electron 33+
-- 💡 Multi-tab browsing support
-- 🔒 Secure sandbox environment
-- 🌈 Dark mode support
-- 🔌 Configurable proxy settings
-- 🌍 Cross-platform support (Windows, macOS, Linux)
+- **Proxy Support**
+  - Per-tab proxy configuration
+  - Proxy authentication support
+  - Automatic proxy error handling
 
-## 🔧 System Requirements
+- **Security Features**
+  - Sandboxed web contents
+  - Context isolation
+  - Secure content handling
+  - Custom session management
 
-- Node.js >= 18.0.0
-- npm >= 8.0.0 or Yarn >= 1.22.0
+- **Developer Tools**
+  - Built-in error handling and logging
+  - Development mode with enhanced debugging
+  - Memory usage monitoring
+  - Performance optimization
 
-## 🚀 Quick Start
+## Architecture
 
-1. Clone the repository
+### Core Components
+
+1. **Application Layer**
+   - Main application initialization
+   - Window management
+   - IPC communication setup
+
+2. **Configuration System**
+   - System configuration management
+   - User preferences handling
+   - Environment-specific settings
+
+3. **Tab Management**
+   - TabManager: Core tab handling
+   - TabStateManager: Tab state management
+   - TabEventHandler: Event handling for tabs
+
+4. **Browser Features**
+   - Custom session management
+   - Proxy configuration
+   - Error handling system
+   - Resource loading optimization
+
+## Development
+
+### Prerequisites
+
+- Node.js (version X.X.X or higher)
+- npm or yarn
+- Electron
+
+### Setup
 
 
 
