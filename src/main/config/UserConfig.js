@@ -1,10 +1,10 @@
-const fs = require('fs')
-const { 
+import fs from 'fs'
+import { 
   USER_CONFIG_PATH, 
   DEFAULT_USER_CONFIG 
-} = require('./constants')
+} from './constants.js'
 
-class UserConfig {
+export default class UserConfig {
   constructor() {
     this.config = DEFAULT_USER_CONFIG
   }
@@ -49,6 +49,4 @@ class UserConfig {
     }
     await this.saveToFile()
   }
-}
-
-module.exports = UserConfig 
+} 

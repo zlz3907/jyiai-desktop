@@ -3,14 +3,14 @@
  * @module config/ConfigLoader
  */
 
-const SystemConfig = require('./SystemConfig')
-const UserConfig = require('./UserConfig')
+import SystemConfig from './SystemConfig.js'
+import UserConfig from './UserConfig.js'
 
 /**
  * 配置加载器类
  * @class
  */
-class ConfigLoader {
+export default class ConfigLoader {
   constructor() {
     this.systemConfig = new SystemConfig()
     this.userConfig = new UserConfig()
@@ -43,6 +43,4 @@ class ConfigLoader {
   getUserConfig() {
     return this.userConfig
   }
-}
-
-module.exports = ConfigLoader 
+} 

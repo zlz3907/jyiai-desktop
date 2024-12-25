@@ -1,11 +1,16 @@
-const { app, BaseWindow, ipcMain, Menu, WebContentsView } = require('electron')
-const path = require('path')
-const TabManager = require('./windows/tabs/TabManager')
-// const TabManager = require('./windows/tabs')
-const { autoUpdater } = require('electron-updater')
-const { getConfigLoader, getSystemConfig } = require('./config')
-const { BrowserWindowManager } = require('./windows/browser')
-const store = require('./utils/store')
+import { app, BaseWindow, ipcMain, Menu, WebContentsView } from 'electron'
+import pkg from 'electron-updater'
+const { autoUpdater } = pkg
+import path from 'path'
+import { fileURLToPath } from 'url'
+import { getConfigLoader, getSystemConfig } from './config/index.js'
+// import { BrowserWindowManager } from './windows/browser.js'
+import TabManager from './windows/tabs/TabManager.js'
+import store from './utils/store.js'
+
+// 获取 __dirname 等价物
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 // 初始化应用名称
 app.name = 'AIMetar'
@@ -29,7 +34,7 @@ class Application {
   constructor() {
     this.mainWindow = null
     this.tabManager = null
-    this.browserWindowManager = new BrowserWindowManager()
+    // this.browserWindowManager = new BrowserWindowManager()
     // 禁用 FIDO 和蓝牙相关功能
     app.commandLine.appendSwitch('disable-features', 'WebAuthentication,WebUSB,WebBluetooth')
 
@@ -134,10 +139,10 @@ class Application {
   }
 
   setupIPC() {
-    ipcMain.handle('open-url', (event, url, options = {}) => {
-      console.log('open-url', url, options)
-      return this.browserWindowManager.createWindow({ url, ...options })
-    })
+    // ipcMain.handle('open-url', (event, url, options = {}) => {
+    //   console.log('open-url', url, options)
+    //   return this.browserWindowManager.createWindow({ url, ...options })
+    // })
     // 标签页操作
     ipcMain.handle('create-tab', (event, url, options = {}) => {
       console.log('create-tab', url, options)
@@ -206,12 +211,12 @@ class Application {
 
     // 处理存储相关IPC
     ipcMain.handle('store:set', async (event, key, value) => {
-      store.setItem(key, value);
-    });
+      store.setItem(key, value)
+    })
 
     ipcMain.handle('store:get', async (event, key) => {
-      return store.getItem(key);
-    });
+      return store.getItem(key)
+    })
   }
 
   start() {

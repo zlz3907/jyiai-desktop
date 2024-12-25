@@ -1,12 +1,12 @@
 // 视图状态枚举
-exports.ViewState = {
+export const ViewState = {
     LOADING: 'loading',
     READY: 'ready',
     ERROR: 'error'
 }
 
 // 消息类型常量
-exports.MessageType = {
+export const MessageType = {
     TAB_TITLE_UPDATED: 'tab-title-updated',
     TAB_URL_UPDATED: 'tab-url-updated',
     TAB_LOADING_STATE: 'tab-loading-state',
@@ -19,7 +19,7 @@ exports.MessageType = {
 }
 
 // Session 配置常量
-exports.SessionConfig = {
+export const SessionConfig = {
     USER_AGENT: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     ALLOWED_PERMISSIONS: [
         'media',

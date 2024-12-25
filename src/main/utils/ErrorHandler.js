@@ -1,6 +1,6 @@
-const { app } = require('electron')
-const path = require('path')
-const fs = require('fs')
+import { app } from 'electron'
+import path from 'path'
+import fs from 'fs'
 
 class BrowserErrorHandler {
     constructor() {
@@ -258,4 +258,4 @@ class BrowserErrorHandler {
     }
 }
 
-module.exports = new BrowserErrorHandler() 
+export default new BrowserErrorHandler() 

@@ -41,9 +41,10 @@ contextBridge.exposeInMainWorld('jyiaiSDK', {
     }
   },
 
-  // 浏览器功能 (原 browser 对象的内容)
+  // 浏览器功能
   browser: {
     openUrl: (url, options = {}) => ipcRenderer.invoke('open-url', url, options),
+    
     // 标签页操作
     createTab: (url, options = {}) => ipcRenderer.invoke('create-tab', url, options),
     switchTab: (tabId) => ipcRenderer.invoke('switch-tab', tabId),
@@ -70,7 +71,6 @@ contextBridge.exposeInMainWorld('jyiaiSDK', {
       ipcRenderer.on('tab-url-updated', (event, data) => callback(data))
     },
     onTabLoading: (callback) => {
-      // console.log('onTabLoading 注册了吗？')
       ipcRenderer.on('tab-loading', (event, data) => callback(data))
     },
 

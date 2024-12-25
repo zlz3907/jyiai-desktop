@@ -3,7 +3,7 @@
  * @module config
  */
 
-const ConfigLoader = require('./ConfigLoader')
+import ConfigLoader from './ConfigLoader.js'
 
 /**
  * 配置加载器单例
@@ -16,7 +16,7 @@ let configLoader = null
  * @param {Object} [options] - 初始化选项
  * @returns {Promise<ConfigLoader>}
  */
-function getConfigLoader(options = {}) {
+export function getConfigLoader(options = {}) {
   if (!configLoader) {
     configLoader = new ConfigLoader()
     return configLoader.initialize(options)
@@ -33,7 +33,7 @@ function getConfigLoader(options = {}) {
  * 获取系统配置
  * @returns {SystemConfig}
  */
-function getSystemConfig() {
+export function getSystemConfig() {
   if (!configLoader) {
     throw new Error('Config loader not ready')
   }
@@ -44,15 +44,9 @@ function getSystemConfig() {
  * 获取用户配置
  * @returns {UserConfig}
  */
-function getUserConfig() {
+export function getUserConfig() {
   if (!configLoader) {
     throw new Error('Config loader not ready')
   }
   return configLoader.getUserConfig()
-}
-
-module.exports = {
-  getConfigLoader,
-  getSystemConfig,
-  getUserConfig
 } 

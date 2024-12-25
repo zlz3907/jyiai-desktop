@@ -3,18 +3,18 @@
  * @module config/proxy
  */
 
-const { getSystemConfig } = require('./index')
+import { getSystemConfig } from './index.js'
 
 /**
  * 获取代理配置
  * @returns {Object} 代理配置对象
  */
-function getProxyConfig() {
+export function getProxyConfig() {
     const systemConfig = getSystemConfig()
     return systemConfig.getProxy()
 }
 
-module.exports = { 
+export default { 
     getProxyConfig,
     // 为了兼容性保留原来的导出
     get proxyConfig() {

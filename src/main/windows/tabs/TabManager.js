@@ -1,10 +1,19 @@
-const { WebContentsView, BrowserWindow } = require('electron')
-const path = require('path')
-const SessionManager = require('./SessionManager')
-const ProxyManager = require('./ProxyManager')
-const TabStateManager = require('./TabStateManager')
-const TabEventHandler = require('./TabEventHandler')
-const { MessageType } = require('./constants')
+import { WebContentsView, BrowserWindow } from 'electron'
+import path from 'path'
+import { fileURLToPath } from 'url'
+import SessionManager from './SessionManager.js'
+import ProxyManager from './ProxyManager.js'
+import TabStateManager from './TabStateManager.js'
+import TabEventHandler from './TabEventHandler.js'
+import { MessageType } from './constants.js'
+import { getSystemConfig } from '../../config/index.js'
+
+// 获取 __dirname 等价物
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+
+// 预加载脚本路径
+const PRELOAD_SCRIPT_PATH = path.join(__dirname, '../../../preload/sdk.js')
 
 class TabManager {
     constructor(mainWindow, topView) {
@@ -13,10 +22,10 @@ class TabManager {
         this.topView = topView
         this.tabs = new Map()
         this.activeTabId = null
-        this.toolbarHeight = 72  // 默认工具栏高度
+        this.toolbarHeight = 72
         this.menuView = null
-        this.systemConfig = require('../../config').getSystemConfig()
-        this.menuPopup = null  // 添加 menuPopup 属性
+        this.systemConfig = getSystemConfig()
+        this.menuPopup = null
 
         // 初始化各个管理器
         this.stateManager = new TabStateManager(topView)
@@ -58,7 +67,7 @@ class TabManager {
             contents.setUserAgent(contents.getUserAgent() + ' JYIAIBrowser')
             // 只在开发环境下打开 DevTools
             if (process.env.NODE_ENV === 'development') {
-                view.webContents.openDevTools({ mode: 'detach' })
+                // view.webContents.openDevTools({ mode: 'detach' })
             }
 
             // 先移除其他标签页的显示
@@ -179,8 +188,8 @@ class TabManager {
                 contextIsolation: true,
                 session: session,
                 webSecurity: true,
-                allowRunningInsecureContent: true,
-                experimentalFeatures: true,
+                allowRunningInsecureContent: false,
+                experimentalFeatures: false,
                 allowFileAccessFromFiles: true,
                 webviewTag: true,
                 plugins: true,
@@ -191,7 +200,7 @@ class TabManager {
                 spellcheck: false,
                 partition: `persist:tab_${options.useProxy ? 'proxy' : 'default'}`,
                 ...(options.navigate ? {
-                    preload: path.join(__dirname, '../../../preload/sdk.js')
+                    preload: PRELOAD_SCRIPT_PATH
                 } : {})
             }
         })
@@ -296,7 +305,7 @@ class TabManager {
                     webSecurity: true,
                     sandbox: true,
                     enableRemoteModule: true,
-                    preload: path.join(__dirname, '../../../preload/sdk.js'),
+                    preload: PRELOAD_SCRIPT_PATH,
                 }
             })
 
@@ -358,4 +367,4 @@ class TabManager {
     }
 }
 
-module.exports = TabManager 
+export default TabManager 

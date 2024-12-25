@@ -3,13 +3,18 @@
  * @module config/constants
  */
 
-const path = require('path')
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+// 获取 __dirname 等价物
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 /**
  * 环境类型枚举
  * @enum {string}
  */
-const ENV = {
+export const ENV = {
   /** 开发环境 */
   DEV: 'development',
   /** 生产环境 */
@@ -22,7 +27,7 @@ const ENV = {
  * 获取当前运行环境
  * @returns {string} 当前环境标识
  */
-function getCurrentEnv() {
+export function getCurrentEnv() {
   // 优先使用命令行参数
   if (process.argv.includes('--dev')) return ENV.DEV
   if (process.argv.includes('--prod')) return ENV.PROD
@@ -33,27 +38,27 @@ function getCurrentEnv() {
 }
 
 // 路径相关常量
-const ROOT_DIR = path.resolve(__dirname, '../../..')
-const CONFIG_DIR = path.join(ROOT_DIR, '.jyiai')
+export const ROOT_DIR = path.resolve(__dirname, '../../..')
+export const CONFIG_DIR = path.join(ROOT_DIR, '.jyiai')
 
 /**
  * 系统配置文件路径映射
  * @type {Object.<string, string>}
  */
-const SYSTEM_CONFIG_PATH = {
+export const SYSTEM_CONFIG_PATH = {
   [ENV.DEV]: path.join(CONFIG_DIR, 'system.dev.json'),
   [ENV.PROD]: path.join(CONFIG_DIR, 'system.prod.json'),
   [ENV.TEST]: path.join(CONFIG_DIR, 'system.test.json')
 }
 
 /** 用户配置文件路径 */
-const USER_CONFIG_PATH = path.join(CONFIG_DIR, 'user.json')
+export const USER_CONFIG_PATH = path.join(CONFIG_DIR, 'user.json')
 
 /**
  * 默认系统配置
  * @type {Object}
  */
-const DEFAULT_SYSTEM_CONFIG = {
+export const DEFAULT_SYSTEM_CONFIG = {
   proxy: {
     enabled: false,
     host: 'localhost',
@@ -73,18 +78,7 @@ const DEFAULT_SYSTEM_CONFIG = {
  * 默认用户配置
  * @type {Object}
  */
-const DEFAULT_USER_CONFIG = {
+export const DEFAULT_USER_CONFIG = {
   preferences: {},
   customSettings: {}
-}
-
-module.exports = {
-  ENV,
-  getCurrentEnv,
-  ROOT_DIR,
-  CONFIG_DIR,
-  SYSTEM_CONFIG_PATH,
-  USER_CONFIG_PATH,
-  DEFAULT_SYSTEM_CONFIG,
-  DEFAULT_USER_CONFIG
 } 

@@ -1,6 +1,23 @@
-const { session } = require('electron')
-const path = require('path')
-const { SessionConfig } = require('./constants')
+import { session } from 'electron'
+import path from 'path'
+import { SessionConfig } from './constants.js'
+
+// CSP 配置
+const CONTENT_SECURITY_POLICY = [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' https: http:",
+    "style-src 'self' 'unsafe-inline' https: http: data:",
+    "style-src-elem 'self' 'unsafe-inline' https: http: data:",
+    "img-src 'self' data: https: http: blob:",
+    "connect-src 'self' https: http: ws: wss: data: blob:",
+    "font-src 'self' data: https: http:",
+    "object-src 'none'",
+    "media-src 'self' https: http: blob:",
+    "frame-src 'self' https: http:",
+    "worker-src 'self' blob:",
+    "child-src 'self' blob:",
+    "base-uri 'self'"
+].join('; ')
 
 class SessionManager {
     createSession(useProxy = false) {
@@ -25,17 +42,15 @@ class SessionManager {
             callback(true)  // 允许所有权限
         })
 
-        // 配置 Content-Security-Policy
-        // customSession.webRequest.onHeadersReceived((details, callback) => {
-        //     callback({
-        //         responseHeaders: {
-        //             ...details.responseHeaders,
-        //             'Access-Control-Allow-Origin': ['*'],
-        //             'Access-Control-Allow-Methods': ['*'],
-        //             'Access-Control-Allow-Headers': ['*']
-        //         }
-        //     })
-        // })
+        // 设置 Content Security Policy
+        customSession.webRequest.onHeadersReceived((details, callback) => {
+            callback({
+                responseHeaders: {
+                    ...details.responseHeaders,
+                    'Content-Security-Policy': CONTENT_SECURITY_POLICY
+                }
+            })
+        })
 
         // 配置代理规则
         if (process.env.HTTP_PROXY || process.env.HTTPS_PROXY) {
@@ -57,4 +72,4 @@ class SessionManager {
     }
 }
 
-module.exports = new SessionManager() 
+export default new SessionManager() 

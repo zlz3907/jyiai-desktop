@@ -1,4 +1,4 @@
-const { MessageType } = require('./constants')
+import { MessageType } from './constants.js'
 
 class TabStateManager {
     constructor(topView) {
@@ -54,4 +54,4 @@ class TabStateManager {
     }
 }
 
-module.exports = TabStateManager 
+export default TabStateManager 

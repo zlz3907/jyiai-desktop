@@ -1,6 +1,6 @@
-const { MessageType } = require('./constants')
-const ErrorHandler = require('../../utils/ErrorHandler')
-const { getSystemConfig } = require('../../config')
+import { MessageType } from './constants.js'
+import ErrorHandler from '../../utils/ErrorHandler.js'
+import { getSystemConfig } from '../../config/index.js'
 
 class TabEventHandler {
     constructor(tabStateManager) {
@@ -206,4 +206,4 @@ class TabEventHandler {
     }
 }
 
-module.exports = TabEventHandler 
+export default TabEventHandler 

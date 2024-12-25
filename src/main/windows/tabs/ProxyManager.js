@@ -1,4 +1,4 @@
-const { getSystemConfig } = require('../../config')
+import { getSystemConfig } from '../../config/index.js'
 
 class ProxyManager {
     constructor() {
@@ -63,4 +63,4 @@ class ProxyManager {
     }
 }
 
-module.exports = new ProxyManager() 
+export default new ProxyManager() 

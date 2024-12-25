@@ -3,20 +3,20 @@
  * @module config/SystemConfig
  */
 
-const fs = require('fs')
-const axios = require('axios')
-const { 
+import fs from 'fs'
+import axios from 'axios'
+import { 
   ENV,
   getCurrentEnv,
   SYSTEM_CONFIG_PATH, 
   DEFAULT_SYSTEM_CONFIG 
-} = require('./constants')
+} from './constants.js'
 
 /**
  * 系统配置管理类
  * @class
  */
-class SystemConfig {
+export default class SystemConfig {
   /**
    * 创建系统配置实例
    * @constructor
@@ -157,6 +157,4 @@ class SystemConfig {
   isProd() {
     return this.env === ENV.PROD
   }
-}
-
-module.exports = SystemConfig 
+} 
