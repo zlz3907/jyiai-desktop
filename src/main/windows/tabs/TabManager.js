@@ -153,7 +153,6 @@ class TabManager {
 
         const tabState = this.stateManager.getState(this.activeTabId)
         const isHome = tabState?.isHome || false
-        console.log('updateActiveViewBounds', this.activeTabId, view.getBounds())
         const bounds = this.containerView.getBounds()
         view.setBounds({
             x: 0,
@@ -174,16 +173,20 @@ class TabManager {
     _createTabView(session, options) {
         return new WebContentsView({
             webPreferences: {
-                nodeIntegration: options.navigate ? false : true,
-                contextIsolation: options.navigate ? true : false,
+                nodeIntegration: false,
+                contextIsolation: true,
                 session: session,
                 webSecurity: true,
-                allowRunningInsecureContent: false,
+                allowRunningInsecureContent: true,
                 experimentalFeatures: true,
                 allowFileAccessFromFiles: true,
                 webviewTag: true,
                 plugins: true,
                 javascript: true,
+                images: true,
+                webgl: true,
+                accelerator: true,
+                spellcheck: false,
                 partition: `persist:tab_${options.useProxy ? 'proxy' : 'default'}`,
                 ...(options.navigate ? {
                     preload: path.join(__dirname, '../../../preload/sdk.js')

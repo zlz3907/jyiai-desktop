@@ -13,6 +13,7 @@ class TabEventHandler {
         this._setupLoadingEvents(contents, tabId)
         this._setupErrorEvents(contents, tabId)
         this._setupMemoryMonitoring(contents, tabId)
+        this._setupNewWindowHandler(contents)
     }
 
     _setupNavigationEvents(contents, tabId) {
@@ -24,6 +25,16 @@ class TabEventHandler {
         // 导航完成，获取完整信息
         contents.on('did-finish-load', () => {
             this._updatePageInfo(contents, tabId)
+        })
+
+        // 监听页面内导航
+        contents.on('did-navigate-in-page', (event, url, isMainFrame) => {
+            if (isMainFrame) {
+                this.stateManager.updateState(tabId, { 
+                    url,
+                    loading: true  // 标记为加载中
+                })
+            }
         })
 
         // URL 更新
@@ -53,20 +64,6 @@ class TabEventHandler {
         })
 
         contents.on('did-stop-loading', () => {
-            // 获取当前 URL
-            const url = contents.getURL()
-            
-            // // 检查是否是 YouTube 观看页面
-            // if (url.includes('youtube.com/watch')) {
-            //     // 延迟 500ms 后重新加载页面
-            //     setTimeout(() => {
-            //         if (!contents.isDestroyed()) {
-            //             contents.reload()
-            //         }
-            //     }, 500)
-            //     return
-            // }
-
             this.stateManager.updateState(tabId, { 
                 loading: false,
                 error: null
@@ -129,9 +126,10 @@ class TabEventHandler {
         })
     }
 
-    async _updatePageInfo(contents, tabId) {
-        try {
-            const [title, url, metaDataStr] = await Promise.all([
+    _updatePageInfo(contents, tabId) {
+        const tabState = this.stateManager.tabStates.get(tabId)
+        if (!tabState?.isHome && !tabState?.navigate) {
+            Promise.all([
                 contents.getTitle(),
                 contents.getURL(),
                 contents.executeJavaScript(`
@@ -152,30 +150,59 @@ class TabEventHandler {
                         }))
                     })
                 `)
-            ])
-
-            const metaData = JSON.parse(metaDataStr)
-            this.stateManager.updateState(tabId, {
-                title,
-                url,
-                loading: false,
-                metaData: {
-                    ...metaData,
-                    timestamp: Date.now()
-                },
-                favicon: metaData.favicon,
-                icons: metaData.icons
-            })
-        } catch (error) {
-            console.error('Error getting page info:', error)
-            this.stateManager.updateState(tabId, {
-                error: {
-                    code: 'META_FETCH_ERROR',
-                    description: error.message
-                },
-                loading: false
+            ]).then(([title, url, metaDataStr]) => {
+                const metaData = JSON.parse(metaDataStr)
+                this.stateManager.updateState(tabId, {
+                    title,
+                    url,
+                    loading: false,
+                    metaData: {
+                        ...metaData,
+                        timestamp: Date.now()
+                    },
+                    favicon: metaData.favicon,
+                    icons: metaData.icons
+                })
+            }).catch(error => {
+                console.error('Error getting page info:', error)
+                this.stateManager.updateState(tabId, {
+                    error: {
+                        code: 'META_FETCH_ERROR',
+                        description: error.message
+                    },
+                    loading: false
+                })
             })
         }
+    }
+
+    _setupNewWindowHandler(contents) {
+        // 拦截新窗口打开
+        contents.setWindowOpenHandler(({ url, frameName, features }) => {
+            // 忽略 devtools 和特殊窗口
+            // console.log('url', url, frameName, features)
+            if (url === 'about:blank') {
+                return { action: 'deny' }
+            }
+            if (frameName === '_blank' && features.indexOf('nodeIntegration') !== -1) {
+                return { action: 'allow' }
+            }
+
+            // 发送创建标签命令并阻止新窗口
+            this.stateManager.topView.webContents.send('tab-command', {
+                action: 'addTab',
+                payload: {
+                    title: 'New Tab',
+                    // id: uuidv4(),
+                    url: url,
+                    isApp: false,
+                    isHome: false,
+                    navigate: false,
+                    isNewWindow: true
+                }
+            })
+            return { action: 'deny' }
+        })
     }
 }
 
