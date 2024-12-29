@@ -5,10 +5,22 @@
 
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { app } from 'electron'
 
 // 获取 __dirname 等价物
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
+
+// 获取应用根目录
+const getRootPath = () => {
+    // 判断是否是打包环境
+    if (app.isPackaged) {
+        // 在打包环境中，使用 process.resourcesPath
+        return path.join(process.resourcesPath)
+    }
+    // 在开发环境中，使用之前的路径
+    return path.resolve(__dirname, '../../..')
+}
 
 /**
  * 环境类型枚举
@@ -38,7 +50,7 @@ export function getCurrentEnv() {
 }
 
 // 路径相关常量
-export const ROOT_DIR = path.resolve(__dirname, '../../..')
+export const ROOT_DIR = getRootPath()
 export const CONFIG_DIR = path.join(ROOT_DIR, '.jyiai')
 
 /**

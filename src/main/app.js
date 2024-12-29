@@ -39,8 +39,36 @@ class Application {
     app.commandLine.appendSwitch('disable-features', 'WebAuthentication,WebUSB,WebBluetooth')
 
     // 配置自动更新
-    autoUpdater.autoDownload = false
-    autoUpdater.checkForUpdatesAndNotify()
+    if (app.isPackaged) {  // 只在打包环境下启用自动更新
+      autoUpdater.logger = console  // 添加日志输出
+      autoUpdater.autoDownload = false
+      
+      // 添加更新事件处理
+      autoUpdater.on('error', (error) => {
+        console.error('Update error:', error)
+      })
+
+      autoUpdater.on('checking-for-update', () => {
+        console.log('Checking for updates...')
+      })
+
+      autoUpdater.on('update-available', (info) => {
+        console.log('Update available:', info)
+      })
+
+      autoUpdater.on('update-not-available', (info) => {
+        console.log('Update not available:', info)
+      })
+
+      // 检查更新
+      try {
+        autoUpdater.checkForUpdatesAndNotify().catch(error => {
+          console.warn('Auto update check failed:', error)
+        })
+      } catch (error) {
+        console.warn('Failed to setup auto updater:', error)
+      }
+    }
   }
 
   createMainWindow() {
@@ -239,12 +267,43 @@ class Application {
   }
 
   setupAutoUpdater() {
-    autoUpdater.on('update-available', () => {
-      // 处理更新可用的情况
+    // 配置更新服务器
+    autoUpdater.setFeedURL({
+      provider: 'github',
+      owner: 'zhycit',
+      repo: 'jyiai-desktop',
+      private: true,
+      token: process.env.GH_TOKEN  // 从环境变量获取 GitHub token
     })
-    
-    autoUpdater.on('update-downloaded', () => {
-      // 处理更新下载完成的情况
+
+    // 配置自动更新行为
+    autoUpdater.autoDownload = false
+    autoUpdater.logger = console  // 添加日志输出
+
+    // 添加更新事件处理
+    autoUpdater.on('error', (error) => {
+      console.error('Update error:', error)
     })
+
+    autoUpdater.on('checking-for-update', () => {
+      console.log('Checking for updates...')
+    })
+
+    autoUpdater.on('update-available', (info) => {
+      console.log('Update available:', info)
+    })
+
+    autoUpdater.on('update-not-available', (info) => {
+      console.log('Update not available:', info)
+    })
+
+    // 检查更新
+    try {
+      autoUpdater.checkForUpdatesAndNotify().catch(error => {
+        console.warn('Auto update check failed:', error)
+      })
+    } catch (error) {
+      console.warn('Failed to setup auto updater:', error)
+    }
   }
 } 

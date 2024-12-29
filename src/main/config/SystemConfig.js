@@ -80,22 +80,25 @@ export default class SystemConfig {
   loadFromFile() {
     return new Promise((resolve, reject) => {
       const configPath = SYSTEM_CONFIG_PATH[this.env]
+      console.log('Loading config from:', configPath)
       
       try {
         if (fs.existsSync(configPath)) {
           const fileContent = fs.readFileSync(configPath, 'utf8')
+        //   console.log('Config content:', fileContent)
           this.config = {
             ...DEFAULT_SYSTEM_CONFIG,
             ...JSON.parse(fileContent)
           }
-          console.log(`Loaded ${this.env} configuration from: ${configPath}`)
           resolve()
         } else {
-          console.log(`No configuration file found for ${this.env}, creating default config`)
+          console.warn('Config file not found, using default config')
+          this.config = DEFAULT_SYSTEM_CONFIG
           this.saveToFile().then(resolve).catch(reject)
         }
       } catch (error) {
-        reject(new Error(`Failed to load config from file: ${error.message}`))
+        console.error('Failed to load config:', error)
+        reject(new Error(`Failed to load config: ${error.message}`))
       }
     })
   }
@@ -156,5 +159,11 @@ export default class SystemConfig {
    */
   isProd() {
     return this.env === ENV.PROD
+  }
+
+  exportConfig() {
+    const configPath = SYSTEM_CONFIG_PATH[this.env]
+    console.log('Current config location:', configPath)
+    console.log('Current config:', JSON.stringify(this.config, null, 2))
   }
 } 
