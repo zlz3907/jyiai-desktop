@@ -32,23 +32,66 @@ class TabManager {
         this.eventHandler = new TabEventHandler(this.stateManager, this.systemConfig)
     }
 
-    // 创建新标签页
+    /**
+     * 检查用户的代理权限
+     * @private
+     * @returns {boolean} 是否有效
+     */
+    _checkProxyPermission() {
+        try {
+            const userSession = store.getItem('session.user')
+            if (!userSession) {
+                console.warn('No user session found')
+                return false
+            }
+
+            const { balance } = (typeof userSession === 'string' 
+                ? JSON.parse(userSession) 
+                : userSession)
+
+            const expiryTime = balance?.purchase?.vzone?.totalTimeQuantity
+            if (!expiryTime) {
+                console.warn('No proxy subscription found')
+                return false
+            }
+
+            return Date.now() < expiryTime
+        } catch (error) {
+            console.warn('Failed to check proxy permission:', error)
+            return false
+        }
+    }
+
+    /**
+     * 打开充值页面
+     * @private
+     */
+    _openRechargePage() {
+        const baseUrl = this.systemConfig.get('baseUrl')
+        this.createTab(`${baseUrl}/recharge`, {
+            navigate: true,
+            isHome: false
+        })
+    }
+
+    /**
+     * 创建新标签页
+     * @param {string} url - 页面URL
+     * @param {Object} options - 配置选项
+     * @returns {string} 标签页ID
+     */
     createTab(url = 'about:blank', options = {}) {
         // URL 验证和处理
         const validUrl = this._validateUrl(url)
         const tabId = options.tabId || Date.now().toString()
 
+        // 处理代理模式
         if (options.useProxy) {
-            try {
-                const userSession = store.getItem('session.user')
-                if (userSession) {
-                    const {balance} = (typeof userSession === 'string' 
-                        ? JSON.parse(userSession) 
-                        : userSession)
-                    console.log('User roles:', balance?.purchase?.vzone)
-                }
-            } catch (error) {
-                console.warn('Failed to parse user session:', error)
+            const hasValidSubscription = this._checkProxyPermission()
+            if (!hasValidSubscription) {
+                console.log('Proxy subscription expired, redirecting to recharge page')
+                this._openRechargePage()
+                return
             }
         }
 
@@ -59,66 +102,91 @@ class TabManager {
                 ProxyManager.configureProxy(customSession)
             }
 
-            // 创建视图
+            // 创建和初始化标签页
             const view = this._createTabView(customSession, options)
-            this.tabs.set(tabId, view)
-            
-            // 设置为活动标签页
-            this.activeTabId = tabId
-            
-            // 初始化标签状态
-            this.stateManager.updateState(tabId, {
-                useProxy: options.useProxy || false,
-                url: options?.navigate ? 'about:blank' : validUrl,
-                title: options?.navigate ? 'about:blank' : 'New Tab',
-                navigate: options?.navigate,
-                isHome: options?.isHome || false
-            }, MessageType.TAB_CREATED)
+            this._initializeTab(view, tabId, validUrl, options)
 
-            // 设置事件监听
-            const contents = view.webContents
-            this.eventHandler.setupEvents(contents, tabId)
-            contents.setUserAgent(contents.getUserAgent() + ' JYIAIBrowser')
-            // 只在开发环境下打开 DevTools
-            if (process.env.NODE_ENV === 'development') {
-                view.webContents.openDevTools({ mode: 'detach' })
-            }
-
-            // 先移除其他标签页的显示
-            for (const [id, v] of this.tabs) {
-                if (id !== tabId) {
-                    this.containerView.removeChildView(v)
-                }
-            }
-
-            // 添加新标签页到容器
-            this.containerView.addChildView(view)
-            
-            // 更新新标签页的布局
-            this.updateActiveViewBounds(options?.isHome)
-
-            // 只在 URL 有效时加载
-            if (validUrl && validUrl !== 'about:blank') {
-                // console.log('Loading URL:', validUrl)
-                contents.loadURL(validUrl, {
-                    timeout: 30000,
-                    extraHeaders: 'pragma: no-cache\n'
-                }).catch(err => {
-                    console.error('Failed to load URL:', err)
-                    // 加载失败时更新状态
-                    this.stateManager.updateState(tabId, {
-                        error: {
-                            code: err.code || 'LOAD_ERROR',
-                            description: err.message
-                        },
-                        loading: false
-                    }, MessageType.TAB_STATE_CHANGED)
-                })
-            }
             return tabId
         } catch (error) {
             console.error('Failed to create tab:', error)
             throw error
+        }
+    }
+
+    /**
+     * 初始化标签页
+     * @private
+     * @param {WebContentsView} view - 标签页视图
+     * @param {string} tabId - 标签页ID
+     * @param {string} validUrl - 验证后的URL
+     * @param {Object} options - 配置选项
+     */
+    _initializeTab(view, tabId, validUrl, options) {
+        this.tabs.set(tabId, view)
+        this.activeTabId = tabId
+            
+        // 初始化标签状态
+        this.stateManager.updateState(tabId, {
+            useProxy: options.useProxy || false,
+            url: options?.navigate ? 'about:blank' : validUrl,
+            title: options?.navigate ? 'about:blank' : 'New Tab',
+            navigate: options?.navigate,
+            isHome: options?.isHome || false
+        }, MessageType.TAB_CREATED)
+
+        // 设置事件监听和用户代理
+        const contents = view.webContents
+        this.eventHandler.setupEvents(contents, tabId)
+        contents.setUserAgent(contents.getUserAgent() + ' JYIAIBrowser')
+
+        // 开发环境下打开 DevTools
+        if (process.env.NODE_ENV === 'development') {
+            view.webContents.openDevTools({ mode: 'detach' })
+        }
+
+        // 更新视图布局
+        this._updateTabView(view, tabId, options?.isHome)
+
+        // 加载URL
+        this._loadTabContent(contents, validUrl, tabId)
+    }
+
+    /**
+     * 更新标签页视图布局
+     * @private
+     */
+    _updateTabView(view, tabId, isHome) {
+        // 移除其他标签页
+        for (const [id, v] of this.tabs) {
+            if (id !== tabId) {
+                this.containerView.removeChildView(v)
+            }
+        }
+
+        // 添加新标签页并更新布局
+        this.containerView.addChildView(view)
+        this.updateActiveViewBounds(isHome)
+    }
+
+    /**
+     * 加载标签页内容
+     * @private
+     */
+    _loadTabContent(contents, validUrl, tabId) {
+        if (validUrl && validUrl !== 'about:blank') {
+            contents.loadURL(validUrl, {
+                timeout: 30000,
+                extraHeaders: 'pragma: no-cache\n'
+            }).catch(err => {
+                console.error('Failed to load URL:', err)
+                this.stateManager.updateState(tabId, {
+                    error: {
+                        code: err.code || 'LOAD_ERROR',
+                        description: err.message
+                    },
+                    loading: false
+                }, MessageType.TAB_STATE_CHANGED)
+            })
         }
     }
 
