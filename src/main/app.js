@@ -110,6 +110,7 @@ class Application {
 
     // 加载默认页面
     this.topView.webContents.loadURL(`${baseUrl}/desktop`)
+    // this.topView.webContents.openDevTools({ mode: 'detach' })
 
     // 初始化标签管理器
     this.tabManager = new TabManager(this.mainWindow, this.topView)

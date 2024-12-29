@@ -5,7 +5,7 @@ import { SessionConfig } from './constants.js'
 // CSP 配置
 const CONTENT_SECURITY_POLICY = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' https: http:",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http:",
     "style-src 'self' 'unsafe-inline' https: http: data:",
     "style-src-elem 'self' 'unsafe-inline' https: http: data:",
     "img-src 'self' data: https: http: blob:",

@@ -7,7 +7,7 @@ import TabStateManager from './TabStateManager.js'
 import TabEventHandler from './TabEventHandler.js'
 import { MessageType } from './constants.js'
 import { getSystemConfig } from '../../config/index.js'
-
+import store from '../../utils/store.js'
 // 获取 __dirname 等价物
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -38,6 +38,20 @@ class TabManager {
         const validUrl = this._validateUrl(url)
         const tabId = options.tabId || Date.now().toString()
 
+        if (options.useProxy) {
+            try {
+                const userSession = store.getItem('session.user')
+                if (userSession) {
+                    const {balance} = (typeof userSession === 'string' 
+                        ? JSON.parse(userSession) 
+                        : userSession)
+                    console.log('User roles:', balance?.purchase?.vzone)
+                }
+            } catch (error) {
+                console.warn('Failed to parse user session:', error)
+            }
+        }
+
         try {
             // 创建和配置 session
             const customSession = SessionManager.createSession(options.useProxy)
@@ -67,7 +81,7 @@ class TabManager {
             contents.setUserAgent(contents.getUserAgent() + ' JYIAIBrowser')
             // 只在开发环境下打开 DevTools
             if (process.env.NODE_ENV === 'development') {
-                // view.webContents.openDevTools({ mode: 'detach' })
+                view.webContents.openDevTools({ mode: 'detach' })
             }
 
             // 先移除其他标签页的显示
@@ -103,7 +117,7 @@ class TabManager {
             }
             return tabId
         } catch (error) {
-            console.error('Error creating tab:', error)
+            console.error('Failed to create tab:', error)
             throw error
         }
     }
@@ -199,7 +213,7 @@ class TabManager {
                 accelerator: true,
                 spellcheck: false,
                 partition: `persist:tab_${options.useProxy ? 'proxy' : 'default'}`,
-                ...(options.navigate ? {
+                ...((options.navigate || options.isHome) ? {
                     preload: PRELOAD_SCRIPT_PATH
                 } : {})
             }
