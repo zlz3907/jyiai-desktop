@@ -66,11 +66,12 @@ class TabManager {
      * 打开充值页面
      * @private
      */
-    _openRechargePage() {
+    _openRechargePage(tabId ) {
         const baseUrl = this.systemConfig.get('baseUrl')
-        this.createTab(`${baseUrl}/recharge`, {
+        this.createTab(`${baseUrl}/desktop/vip-upgrade`, {
             navigate: true,
-            isHome: false
+            isHome: false,
+            tabId: tabId
         })
     }
 
@@ -90,7 +91,7 @@ class TabManager {
             const hasValidSubscription = this._checkProxyPermission()
             if (!hasValidSubscription) {
                 console.log('Proxy subscription expired, redirecting to recharge page')
-                this._openRechargePage()
+                this._openRechargePage(tabId)
                 return
             }
         }
