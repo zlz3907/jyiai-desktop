@@ -7,6 +7,7 @@ import { getConfigLoader, getSystemConfig } from './config/index.js'
 // import { BrowserWindowManager } from './windows/browser.js'
 import TabManager from './windows/tabs/TabManager.js'
 import store from './utils/store.js'
+import packageJson from '../../package.json'
 
 // 获取 __dirname 等价物
 const __filename = fileURLToPath(import.meta.url)
@@ -15,6 +16,10 @@ const __dirname = path.dirname(__filename)
 // 初始化应用名称
 app.name = 'AIMetar'
 app.setName('AIMetar')
+
+// 修改版本信息的获取方式
+const APP_VERSION = packageJson.version;
+const BUILD_NUMBER = '1';
 
 // 启动应用
 getConfigLoader({
