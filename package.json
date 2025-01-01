@@ -27,7 +27,10 @@
     "build": "cross-env NODE_ENV=production electron-builder --publish never",
     "dev": "cross-env NODE_ENV=development electron .",
     "publish": "electron-builder -p always",
-    "release": "electron-builder --mac -p always --config.mac.notarize=true"
+    "release": "cross-env NODE_ENV=production electron-builder --mac -p always --config.mac.notarize=true",
+    "build:mac": "cross-env NODE_ENV=production electron-builder --mac --config.mac.notarize=false",
+    "build:win": "cross-env NODE_ENV=production electron-builder --win",
+    "build:linux": "cross-env NODE_ENV=production electron-builder --linux"
   },
   "build": {
     "appId": "com.zhycit.jyiai",
@@ -44,7 +47,7 @@
       "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
-      "icon": "build/icon.icns",
+      "icon": "imgs/icon.icns",
       "identity": "Beijing zhong he yuan chuang information technology co. LTD (32CZ837ZAV)"
     },
     "win": {
@@ -52,7 +55,7 @@
         "nsis",
         "zip"
       ],
-      "icon": "build/icon.ico",
+      "icon": "imgs/icon.ico",
       "artifactName": "${productName}-Setup-${version}.${ext}"
     },
     "linux": {
@@ -72,6 +75,7 @@
       "package.json",
       "LICENSE",
       "README.md",
+      "imgs/**/*",
       "**/*",
       ".jyiai/*"
     ],
