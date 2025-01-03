@@ -1,7 +1,7 @@
 {
   "name": "jyiai-desktop",
   "productName": "简易AI",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "基于大语言模型的智能AI助手（AIMetaa）",
   "main": "src/main/app.js",
   "author": {
@@ -56,12 +56,16 @@
     "mas": {
       "hardenedRuntime": true,
       "entitlements": "build/entitlements.mas.plist",
-      "entitlementsInherit": "build/entitlements.mas.plist",
+      "entitlementsInherit": "build/entitlements.mas.inherit.plist",
+      "helperBundleId": "com.zhycit.jyiai.helper",
       "provisioningProfile": "build/jyiai-mac.provisionprofile",
       "icon": "imgs/icon.icns",
       "identity": "Beijing zhong he yuan chuang information technology co. LTD (32CZ837ZAV)",
       "extendInfo": {
-        "ElectronTeamID": "32CZ837ZAV"
+        "ElectronTeamID": "32CZ837ZAV",
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        }
       }
     },
     "win": {
