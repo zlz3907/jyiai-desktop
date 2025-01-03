@@ -104,8 +104,6 @@ class Application {
         nodeIntegration: false,
         contextIsolation: true,
         webSecurity: true,
-        sandbox: true,
-        enableRemoteModule: true,
         preload: path.join(__dirname, '../preload/sdk.js'),
       }
     })
@@ -120,8 +118,6 @@ class Application {
         nodeIntegration: false,
         contextIsolation: true,
         webSecurity: true,
-        sandbox: true,
-        enableRemoteModule: true,
         preload: path.join(__dirname, '../preload/sdk.js'),
       }
     })
