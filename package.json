@@ -1,7 +1,7 @@
 {
   "name": "jyiai-desktop",
   "productName": "简易AI",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "基于大语言模型的智能AI助手（AIMetaa）",
   "main": "src/main/app.js",
   "author": {
@@ -31,8 +31,7 @@
     "build:mac": "cross-env NODE_ENV=production electron-builder --mac --config.mac.notarize=false",
     "build:win": "cross-env NODE_ENV=production electron-builder --win",
     "build:linux": "cross-env NODE_ENV=production electron-builder --linux",
-    "build:mas": "cross-env NODE_ENV=production electron-builder --mac -c.mac.target=mas --config.mac.notarize=false",
-    "sign:mac": "node scripts/sign.js"
+    "build:mas": "cross-env NODE_ENV=production MAS=true electron-builder --mac -c.mac.target=mas --config.mac.notarize=false"
   },
   "build": {
     "appId": "com.zhycit.jyiai",
@@ -55,18 +54,10 @@
       "type": "distribution"
     },
     "mas": {
-      "identity": "Beijing zhong he yuan chuang information technology co. LTD (32CZ837ZAV)",
-      "artifactName": "${productName}-${version}-mas.${ext}",
-      "entitlements": "build/entitlements.mas.plist",
-      "provisioningProfile": "build/jyiai-profile.provisionprofile",
       "icon": "imgs/icon.icns",
-      "entitlementsInherit": "build/entitlements.mas.plist",
       "hardenedRuntime": false,
       "extendInfo": {
         "ElectronTeamID": "32CZ837ZAV",
-        "LSApplicationCategoryType": "public.app-category.productivity",
-        "CFBundleIconFile": "icon.icns",
-        "NSHighResolutionCapable": true,
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
         },
