@@ -1,7 +1,7 @@
 {
   "name": "jyiai-desktop",
   "productName": "简易AI",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "基于大语言模型的智能AI助手（AIMetaa）",
   "main": "src/main/app.js",
   "author": {
@@ -31,7 +31,7 @@
     "build:mac": "cross-env NODE_ENV=production electron-builder --mac --config.mac.notarize=false",
     "build:win": "cross-env NODE_ENV=production electron-builder --win",
     "build:linux": "cross-env NODE_ENV=production electron-builder --linux",
-    "build:mas": "cross-env NODE_ENV=production MAS=true electron-builder --mac -c.mac.target=mas --config.mac.notarize=false"
+    "build:mas": "cross-env NODE_ENV=production MAS=true electron-builder --mac -c.mac.target=mas"
   },
   "build": {
     "appId": "com.zhycit.jyiai",
@@ -57,8 +57,9 @@
       "hardenedRuntime": true,
       "entitlements": "build/entitlements.mas.plist",
       "entitlementsInherit": "build/entitlements.mas.plist",
-      "provisioningProfile": "build/jyiai-profile.provisionprofile",
+      "provisioningProfile": "build/jyiai-mac.provisionprofile",
       "icon": "imgs/icon.icns",
+      "identity": "Beijing zhong he yuan chuang information technology co. LTD (32CZ837ZAV)",
       "extendInfo": {
         "ElectronTeamID": "32CZ837ZAV"
       }
@@ -111,8 +112,8 @@
   "devDependencies": {
     "@electron/notarize": "^2.5.0",
     "@electron/osx-sign": "^1.3.2",
-    "dotenv": "^16.4.5",
     "cross-env": "^7.0.3",
+    "dotenv": "^16.4.5",
     "electron": "^33.2.0",
     "electron-builder": "^25.1.8"
   },
