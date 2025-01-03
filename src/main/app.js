@@ -250,6 +250,14 @@ class Application {
     ipcMain.handle('store:get', async (event, key) => {
       return store.getItem(key)
     })
+
+    ipcMain.handle('store:remove', async (event, key) => {
+      store.removeItem(key)
+    })
+
+    ipcMain.handle('store:clear', async (event) => {
+      store.clear()
+    })
   }
 
   start() {

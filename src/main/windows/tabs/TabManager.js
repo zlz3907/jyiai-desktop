@@ -35,14 +35,14 @@ class TabManager {
     /**
      * 检查用户的代理权限
      * @private
-     * @returns {boolean} 是否有效
+     * @returns {string} 返回需要跳转的路径，空字符串表示有权限
      */
     _checkProxyPermission() {
         try {
             const userSession = store.getItem('session.user')
             if (!userSession) {
-                console.warn('No user session found')
-                return false
+                console.warn('未找到用户会话，需要登录')
+                return '/desktop/auth?backUrl=/desktop/vip-upgrade&nobreadcrumb=true'
             }
 
             const { balance } = (typeof userSession === 'string' 
@@ -51,24 +51,26 @@ class TabManager {
 
             const expiryTime = balance?.purchase?.vzone?.totalTimeQuantity
             if (!expiryTime) {
-                console.warn('No proxy subscription found')
-                return false
+                console.warn('未找到代理订阅，需要升级')
+                return '/desktop/vip-upgrade'
             }
 
-            return Date.now() < expiryTime
+            return Date.now() < expiryTime ? '' : '/desktop/vip-upgrade'
         } catch (error) {
-            console.warn('Failed to check proxy permission:', error)
-            return false
+            console.warn('检查代理权限时出错:', error)
+            return '/desktop/auth'
         }
     }
 
     /**
-     * 打开充值页面
+     * 打开指定页面
      * @private
+     * @param {string} tabId - 标签页ID
+     * @param {string} path - 页面路径
      */
-    _openRechargePage(tabId ) {
+    _openRedirectPage(tabId, path) {
         const baseUrl = this.systemConfig.get('baseUrl')
-        this.createTab(`${baseUrl}/desktop/vip-upgrade`, {
+        this.createTab(`${baseUrl}${path}`, {
             navigate: true,
             isHome: false,
             tabId: tabId
@@ -88,10 +90,10 @@ class TabManager {
 
         // 处理代理模式
         if (options.useProxy) {
-            const hasValidSubscription = this._checkProxyPermission()
-            if (!hasValidSubscription) {
-                console.log('Proxy subscription expired, redirecting to recharge page')
-                this._openRechargePage(tabId)
+            const redirectPath = this._checkProxyPermission()
+            if (redirectPath) {
+                console.log('需要跳转到:', redirectPath)
+                this._openRedirectPage(tabId, redirectPath)
                 return
             }
         }

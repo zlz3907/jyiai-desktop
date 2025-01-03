@@ -11,7 +11,9 @@ contextBridge.exposeInMainWorld('jyiaiSDK', {
   // 存储功能
   store: {
     setItem: (key, value) => ipcRenderer.invoke('store:set', key, value),
-    getItem: (key) => ipcRenderer.invoke('store:get', key)
+    getItem: (key) => ipcRenderer.invoke('store:get', key),
+    removeItem: (key) => ipcRenderer.invoke('store:remove', key),
+    clear: () => ipcRenderer.invoke('store:clear')
   },
 
   // 窗口管理
