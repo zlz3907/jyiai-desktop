@@ -141,3 +141,6 @@ BaseWindow 分为上下两个部分，上部分是程序的工具栏、标签栏
 # 特殊开发习惯
 ## JS代码相关说明
 - 非必要，尽量不要使用 async/await，尽量使用 Promise
+
+# 常用Prompts
+## 生成git英文的commit message和命令

@@ -1,6 +1,7 @@
 import { MessageType } from './constants.js'
 import ErrorHandler from '../../utils/ErrorHandler.js'
 import { getSystemConfig } from '../../config/index.js'
+import ProxyManager from './ProxyManager.js'
 
 class TabEventHandler {
     constructor(tabStateManager) {
@@ -14,6 +15,7 @@ class TabEventHandler {
         this._setupErrorEvents(contents, tabId)
         this._setupMemoryMonitoring(contents, tabId)
         this._setupNewWindowHandler(contents)
+        this._setupFaviconHandler(contents, tabId)
     }
 
     _setupNavigationEvents(contents, tabId) {
@@ -126,6 +128,54 @@ class TabEventHandler {
         })
     }
 
+    _setupFaviconHandler(contents, tabId) {
+        // 拦截所有请求
+        contents.session.webRequest.onBeforeRequest(
+            { urls: ['*://*/*favicon*', '*://*/favicon.ico'] },
+            (details, callback) => {
+                const tabState = this.stateManager.getState(tabId)
+                
+                if (tabState?.useProxy) {
+                    // 如果标签页启用了代理，使用代理配置
+                    const proxyConfig = ProxyManager.getProxyConfig()
+                    if (proxyConfig.enabled) {
+                        // 添加代理认证头
+                        const requestOptions = {
+                            ...details,
+                            proxyUrl: `http://${proxyConfig.host}:${proxyConfig.port}`
+                        }
+                        
+                        if (proxyConfig.username && proxyConfig.password) {
+                            const auth = Buffer.from(`${proxyConfig.username}:${proxyConfig.password}`).toString('base64')
+                            requestOptions.extraHeaders = {
+                                'Proxy-Authorization': `Basic ${auth}`
+                            }
+                        }
+                        
+                        callback(requestOptions)
+                        return
+                    }
+                }
+                
+                // 不使用代理的情况
+                callback({ cancel: false })
+            }
+        )
+
+        // 监听favicon更新
+        contents.on('page-favicon-updated', (event, favicons) => {
+            if (favicons && favicons.length > 0) {
+                this.stateManager.updateState(tabId, {
+                    favicon: favicons[0],
+                    icons: favicons.map(url => ({
+                        href: url,
+                        rel: 'icon'
+                    }))
+                })
+            }
+        })
+    }
+
     _updatePageInfo(contents, tabId) {
         const tabState = this.stateManager.tabStates.get(tabId)
         if (!tabState?.isHome && !tabState?.navigate) {
@@ -152,6 +202,8 @@ class TabEventHandler {
                 `)
             ]).then(([title, url, metaDataStr]) => {
                 const metaData = JSON.parse(metaDataStr)
+                // 使用 useProxy 状态来决定是否通过代理获取 favicon
+                const currentState = this.stateManager.getState(tabId)
                 this.stateManager.updateState(tabId, {
                     title,
                     url,
@@ -161,7 +213,8 @@ class TabEventHandler {
                         timestamp: Date.now()
                     },
                     favicon: metaData.favicon,
-                    icons: metaData.icons
+                    icons: metaData.icons,
+                    useProxy: currentState?.useProxy || false
                 })
             }).catch(error => {
                 console.error('Error getting page info:', error)
