@@ -15,7 +15,8 @@ export const MessageType = {
     TAB_VIEW_STATE: 'tab-view-state',
     TAB_PROXY_STATUS: 'tab-proxy-status',
     TAB_REQUEST_ERROR: 'tab-request-error',
-    TAB_MENU_STATE: 'tab-menu-state'
+    TAB_MENU_STATE: 'tab-menu-state',
+    SIDEBAR_STATE: 'sidebar-state'
 }
 
 // Session 配置常量
