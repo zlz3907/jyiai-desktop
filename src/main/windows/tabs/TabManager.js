@@ -26,6 +26,7 @@ class TabManager {
         this.menuView = null
         this.systemConfig = getSystemConfig()
         this.menuPopup = null
+        this.sidebarPopup = null
 
         // 初始化各个管理器
         this.stateManager = new TabStateManager(topView)
@@ -152,6 +153,8 @@ class TabManager {
 
         // 加载URL
         this._loadTabContent(contents, validUrl, tabId)
+
+        // console.log('createTab', this.tabs)
     }
 
     /**
@@ -242,13 +245,14 @@ class TabManager {
 
     // 更新视图边界
     updateActiveViewBounds() {
-        if (!this.activeTabId) return
+        const activeTab = this.tabs.get(this.activeTabId)
+        if (!activeTab) return
 
         const view = this.tabs.get(this.activeTabId)
         if (!view) return
 
         const tabState = this.stateManager.getState(this.activeTabId)
-        const isHome = tabState?.isHome || false
+        const isHome = tabState?.isHome || tabState?.isApp || false
         const bounds = this.containerView.getBounds()
         const _boundsConfig = this.systemConfig.get('bounds')
         const _topViewBounds = {
@@ -276,6 +280,7 @@ class TabManager {
 
     // 私有方法：创建标签页视图
     _createTabView(session, options) {
+        console.log('createTabView:options', options)
         return new WebContentsView({
             webPreferences: {
                 nodeIntegration: false,
@@ -293,7 +298,7 @@ class TabManager {
                 accelerator: true,
                 spellcheck: false,
                 partition: `persist:tab_${options.useProxy ? 'proxy' : 'default'}`,
-                ...((options.navigate || options.isHome) ? {
+                ...((options.navigate || options.isHome || options.isApp) ? {
                     preload: PRELOAD_SCRIPT_PATH
                 } : {})
             }
@@ -334,6 +339,12 @@ class TabManager {
         if (this.menuPopup) {
             this.menuPopup.destroy()
             this.menuPopup = null
+        }
+        
+        // 清理侧边栏
+        if (this.sidebarPopup) {
+            this.sidebarPopup.destroy()
+            this.sidebarPopup = null
         }
     }
 
@@ -392,6 +403,7 @@ class TabManager {
                 hasShadow: true,
                 type: 'popup',
                 parent: this.mainWindow,
+                resizable: false,
                 show: false,  // 初始不显示
                 webPreferences: {
                     nodeIntegration: false,
@@ -457,6 +469,109 @@ class TabManager {
             this.menuPopup.hide()  // 只是隐藏而不销毁
             this.activateTab(this.activeTabId)
             this.topView.webContents.send('ipc-msg', {type: MessageType.TAB_MENU_STATE, payload: {active: false}})
+        }
+    }
+
+    createSidebar(sidebarUrl, options = {}) {
+        const {x, y, width, height} = this.mainWindow.getBounds()
+        const _boundsConfig = this.systemConfig.get('bounds')
+        const _topViewHeight = options.position || _boundsConfig?.topView?.height || 76
+        
+        const sidebarWidth = options.width || 320 // 默认宽度
+        
+        const _bounds = {
+            width: sidebarWidth,
+            height: height - _topViewHeight,
+            x: x + width - sidebarWidth,
+            y: y + _topViewHeight
+        }
+        console.log('createSidebar', {x, y, width, height}, _boundsConfig, _bounds)
+        if (!this.sidebarPopup) {
+            this.sidebarPopup = new BrowserWindow({
+                ..._bounds,
+                frame: false,
+                transparent: true,
+                hasShadow: true,
+                type: 'popup',
+                parent: this.mainWindow,
+                show: false,
+                roundedCorners: false,  // 禁用窗口圆角
+                resizable: false,
+                webPreferences: {
+                    nodeIntegration: false,
+                    contextIsolation: true,
+                    webSecurity: true,
+                    sandbox: true,
+                    enableRemoteModule: true,
+                    preload: path.join(__dirname, '../../../preload/sdk.js'),
+                }
+            })
+
+            // 首次加载URL
+            this.sidebarPopup.loadURL(sidebarUrl)
+
+            // 监听主窗口的resize事件来调整侧边栏大小
+            this.mainWindow.on('resize', () => {
+                if (this.sidebarPopup && !this.sidebarPopup.isDestroyed()) {
+                    const newBounds = this.mainWindow.getBounds()
+                    const currentBounds = this.sidebarPopup.getBounds()
+                    this.sidebarPopup.setBounds({
+                        width: currentBounds.width,
+                        height: newBounds.height - _topViewHeight,
+                        x: newBounds.x + newBounds.width - currentBounds.width,
+                        y: newBounds.y + _topViewHeight
+                    })
+                }
+            })
+
+            // 监听主窗口的移动事件
+            this.mainWindow.on('move', () => {
+                if (this.sidebarPopup && !this.sidebarPopup.isDestroyed()) {
+                    const newBounds = this.mainWindow.getBounds()
+                    const currentBounds = this.sidebarPopup.getBounds()
+                    this.sidebarPopup.setBounds({
+                        width: currentBounds.width,
+                        height: currentBounds.height,
+                        x: newBounds.x + newBounds.width - currentBounds.width,
+                        y: newBounds.y + _topViewHeight
+                    })
+                }
+            })
+
+            // 监听窗口失去焦点时自动隐藏（可选）
+            if (options.autoHide) {
+                this.sidebarPopup.on('blur', () => {
+                    this.closeSidebar()
+                })
+            }
+
+            if (process.env.NODE_ENV === 'development') {
+                // this.sidebarPopup.webContents.openDevTools({mode: 'detach'})
+            }
+        } else {
+            // 如果侧边栏已存在，更新位置和大小
+            this.sidebarPopup.setBounds(_bounds)
+            if (sidebarUrl !== this.sidebarPopup.webContents.getURL()) {
+                this.sidebarPopup.loadURL(sidebarUrl)
+            }
+        }
+
+        this.sidebarPopup.show()
+        // console.log('createSidebar', this.sidebarPopup)
+        // 通知顶部视图侧边栏状态
+        this.topView.webContents.send('ipc-msg', {
+            type: MessageType.SIDEBAR_STATE, 
+            payload: { active: true }
+        })
+    }
+
+    closeSidebar() {
+        if (this.sidebarPopup) {
+            this.sidebarPopup.hide()
+            this.topView.webContents.send('ipc-msg', {
+                type: MessageType.SIDEBAR_STATE, 
+                payload: { active: false }
+            })
         }
     }
 }

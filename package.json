@@ -1,7 +1,7 @@
 {
   "name": "jyiai-desktop",
   "productName": "简易AI",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "基于大语言模型的智能AI助手（AIMetaa）",
   "main": "src/main/app.js",
   "author": {
@@ -129,7 +129,8 @@
   "dependencies": {
     "axios": "^1.7.9",
     "electron-store": "^10.0.0",
-    "electron-updater": "^6.3.9"
+    "electron-updater": "^6.3.9",
+    "xlsx": "^0.18.5"
   },
   "type": "module"
 }
