@@ -22,7 +22,7 @@ class TabManager {
         this.topView = topView
         this.tabs = new Map()
         this.activeTabId = null
-        this.toolbarHeight = 72
+        this.toolbarHeight = 76
         this.menuView = null
         this.systemConfig = getSystemConfig()
         this.menuPopup = null
@@ -250,18 +250,27 @@ class TabManager {
         const tabState = this.stateManager.getState(this.activeTabId)
         const isHome = tabState?.isHome || false
         const bounds = this.containerView.getBounds()
+        const _boundsConfig = this.systemConfig.get('bounds')
+        const _topViewBounds = {
+            height: _boundsConfig?.topView?.height || 76,
+            minHeight: _boundsConfig?.topView?.minHeight || 32,
+        }
+
+        const homeOffset = _boundsConfig?.topView?.height 
+            - _boundsConfig?.topView?.minHeight
+
         view.setBounds({
             x: 0,
-            y: this.toolbarHeight - (isHome ? 44 : 0),
+            y: _topViewBounds.height - (isHome ? homeOffset - 2 : 0),
             width: bounds.width,
-            height: bounds.height - this.toolbarHeight + (isHome ? 44 : 0)
+            height: bounds.height - _topViewBounds.height + (isHome ? homeOffset + 2 : 0)
         })
-        const topBounds = this.topView.getBounds()
+        // const topBounds = this.topView.getBounds()
         this.topView.setBounds({
             x: 0,
             y: 0,
             width: bounds.width,
-            height: isHome ? 28 : 72
+            height: isHome ? _topViewBounds.minHeight + 2 : _topViewBounds.height
         })
     }
 

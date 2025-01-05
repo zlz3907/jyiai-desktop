@@ -43,6 +43,9 @@ class Application {
     this.mainWindow = null
     this.tabManager = null
     // this.browserWindowManager = new BrowserWindowManager()
+    // 初始化系统配置
+    this.systemConfig = getSystemConfig()
+
     // 禁用 FIDO 和蓝牙相关功能
     app.commandLine.appendSwitch('disable-features', 'WebAuthentication,WebUSB,WebBluetooth')
 
@@ -82,19 +85,22 @@ class Application {
   createMainWindow() {
     console.log(`process.platform: ${process.platform}`)
     
+    // 获取窗口尺寸，确保是数字
+    const _boundsConfig = this.systemConfig.get('bounds')
+    
     // 使用 BaseWindow 创建主窗口
     this.mainWindow = new BaseWindow({
-      width: 1215,
-      height: 751,
-      minWidth: 800,
-      minHeight: 600,
+      width: _boundsConfig?.mainWindow?.width,
+      height: _boundsConfig?.mainWindow?.height,
+      minWidth: _boundsConfig?.mainWindow?.minWidth,
+      minHeight: _boundsConfig?.mainWindow?.minHeight,
       darkTheme: true,
       autoHideMenuBar: true,
       ...(process.platform !== 'darwin' ? {
         titleBarStyle: 'hidden',
         titleBarOverlay: {
-          color: '#2f3241',
-          symbolColor: '#74b1be',
+          // color: '#2f3241',
+          // symbolColor: '#74b1be',
           height: 32
         }
       } : {
@@ -127,34 +133,30 @@ class Application {
 
     // 设置顶部视图的位置和大小
     const bounds = this.mainWindow.getBounds()
-    const topHeight = 72 // 根据需求文档设置高度
 
     this.topView.setBounds({
       x: 0,
       y: 0,
       width: bounds.width,
-      height: topHeight
+      height: _boundsConfig?.topView?.height
     })
 
-    // 获取系统配置
-    const systemConfig = getSystemConfig()
-    const baseUrl = systemConfig.get('baseUrl')
-
     // 加载默认页面
+    const baseUrl = this.systemConfig.get('baseUrl')
     this.topView.webContents.loadURL(`${baseUrl}/desktop`)
     // this.topView.webContents.openDevTools({ mode: 'detach' })
 
     // 初始化标签管理器
     this.tabManager = new TabManager(this.mainWindow, this.topView)
     
-    const newBounds = this.mainWindow.getBounds()
+    // const newBounds = this.mainWindow.getBounds()
     // 更新顶部视图大小
-    this.topView.setBounds({
-      x: 0,
-      y: 0,
-      width: newBounds.width,
-      height: topHeight
-    })
+    // this.topView.setBounds({
+    //   x: 0,
+    //   y: 0,
+    //   width: newBounds.width,
+    //   height: topHeight
+    // })
 
     // 监听窗口大小改变
     this.mainWindow.on('resize', () => {
@@ -239,6 +241,7 @@ class Application {
     })
 
     ipcMain.on('tab-command', (event, command) => {
+      console.log('tab-command', command)
       this.topView.webContents.send('tab-command', command)
     })
 

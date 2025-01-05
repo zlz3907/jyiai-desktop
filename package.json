@@ -29,7 +29,7 @@
     "publish": "electron-builder -p always",
     "release": "cross-env NODE_ENV=production electron-builder --mac -p always --config.mac.notarize=true",
     "build:mac": "cross-env NODE_ENV=production electron-builder --mac --config.mac.notarize=false",
-    "build:win": "cross-env NODE_ENV=production electron-builder --win",
+    "build:win": "cross-env NODE_ENV=production electron-builder --win -c.win.target=portable",
     "build:linux": "cross-env NODE_ENV=production electron-builder --linux",
     "build:mas": "cross-env NODE_ENV=production MAS=true electron-builder --mac -c.mac.target=mas"
   },
@@ -70,11 +70,16 @@
     },
     "win": {
       "target": [
-        "nsis",
-        "zip"
+        "portable"
       ],
       "icon": "imgs/icon.ico",
-      "artifactName": "${productName}-Setup-${version}.${ext}"
+      "artifactName": "${productName}-${version}.${ext}",
+      "extraFiles": [
+        {
+          "from": "build/win/*",
+          "to": "."
+        }
+      ]
     },
     "linux": {
       "target": [
@@ -118,7 +123,7 @@
     "@electron/osx-sign": "^1.3.2",
     "cross-env": "^7.0.3",
     "dotenv": "^16.4.5",
-    "electron": "^33.2.0",
+    "electron": "^33.3.0",
     "electron-builder": "^25.1.8"
   },
   "dependencies": {
