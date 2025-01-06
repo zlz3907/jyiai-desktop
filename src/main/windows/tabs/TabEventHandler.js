@@ -14,7 +14,7 @@ class TabEventHandler {
         this._setupLoadingEvents(contents, tabId)
         this._setupErrorEvents(contents, tabId)
         this._setupMemoryMonitoring(contents, tabId)
-        this._setupNewWindowHandler(contents)
+        this._setupNewWindowHandler(contents, tabId)
         this._setupFaviconHandler(contents, tabId)
     }
 
@@ -229,29 +229,34 @@ class TabEventHandler {
         }
     }
 
-    _setupNewWindowHandler(contents) {
+    _setupNewWindowHandler(contents, tabId) {
         // 拦截新窗口打开
-        contents.setWindowOpenHandler(({ url, frameName, features }) => {
+        contents.setWindowOpenHandler(({ url, frameName, features, disposition }) => {
             // 忽略 devtools 和特殊窗口
-            // console.log('url', url, frameName, features)
-            if (url === 'about:blank') {
-                return { action: 'deny' }
-            }
-            if (frameName === '_blank' && features.indexOf('nodeIntegration') !== -1) {
+            console.log('new window:', { url, frameName, features, disposition })
+
+            // 允许以下情况：
+            // 1. about:blank 页面
+            // 2. 带有 nodeIntegration 的窗口（开发工具等）
+            // 3. 登录弹窗 (disposition 为 'foreground-tab' 以外的情况)
+            if (url === 'about:blank' || 
+                (frameName === '_blank' && features.indexOf('nodeIntegration') !== -1) ||
+                disposition !== 'foreground-tab') {
                 return { action: 'allow' }
             }
 
-            // 发送创建标签命令并阻止新窗口
+            // 只处理从链接点击打开的新窗口 (disposition === 'foreground-tab')
+            const currentState = this.stateManager.getState(tabId)
             this.stateManager.topView.webContents.send('tab-command', {
                 action: 'addTab',
                 payload: {
                     title: 'New Tab',
-                    // id: uuidv4(),
                     url: url,
                     isApp: false,
                     isHome: false,
                     navigate: false,
-                    isNewWindow: true
+                    isNewWindow: true,
+                    useProxy: currentState?.useProxy || false
                 }
             })
             return { action: 'deny' }
