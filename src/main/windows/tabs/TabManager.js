@@ -135,6 +135,7 @@ class TabManager {
             url: options?.navigate ? 'about:blank' : validUrl,
             title: options?.navigate ? 'about:blank' : 'New Tab',
             navigate: options?.navigate,
+            isApp: options?.isApp || false,
             isHome: options?.isHome || false
         }, MessageType.TAB_CREATED)
 
@@ -144,9 +145,9 @@ class TabManager {
         contents.setUserAgent(contents.getUserAgent() + ' JYIAIBrowser')
 
         // 开发环境下打开 DevTools
-        if (process.env.NODE_ENV === 'development') {
-            view.webContents.openDevTools({ mode: 'detach' })
-        }
+        // if (process.env.NODE_ENV === 'development') {
+        //     view.webContents.openDevTools({ mode: 'detach' })
+        // }
 
         // 更新视图布局
         this._updateTabView(view, tabId, options?.isHome)
@@ -260,6 +261,12 @@ class TabManager {
             minHeight: _boundsConfig?.topView?.minHeight || 32,
         }
 
+        // console.log('updateActiveViewBounds', {
+        //     bounds,
+        //     _topViewBounds,
+        //     isHome
+        // })
+
         const homeOffset = _boundsConfig?.topView?.height 
             - _boundsConfig?.topView?.minHeight
 
@@ -280,7 +287,7 @@ class TabManager {
 
     // 私有方法：创建标签页视图
     _createTabView(session, options) {
-        console.log('createTabView:options', options)
+        // console.log('createTabView:options', options)
         return new WebContentsView({
             webPreferences: {
                 nodeIntegration: false,
@@ -428,9 +435,9 @@ class TabManager {
                 this.closeTabsMenu()
             })
 
-            if (process.env.NODE_ENV === 'development') {
-                // this.menuPopup.webContents.openDevTools({mode: 'detach'})
-            }
+            // if (process.env.NODE_ENV === 'development') {
+            //     // this.menuPopup.webContents.openDevTools({mode: 'detach'})
+            // }
         } else {
             // 如果菜单已存在，更新位置
             this.menuPopup.setBounds({
@@ -485,7 +492,7 @@ class TabManager {
             x: x + width - sidebarWidth,
             y: y + _topViewHeight
         }
-        console.log('createSidebar', {x, y, width, height}, _boundsConfig, _bounds)
+        // console.log('createSidebar', {x, y, width, height}, _boundsConfig, _bounds)
         if (!this.sidebarPopup) {
             this.sidebarPopup = new BrowserWindow({
                 ..._bounds,
@@ -545,9 +552,9 @@ class TabManager {
                 })
             }
 
-            if (process.env.NODE_ENV === 'development') {
-                // this.sidebarPopup.webContents.openDevTools({mode: 'detach'})
-            }
+            // if (process.env.NODE_ENV === 'development') {
+            //     // this.sidebarPopup.webContents.openDevTools({mode: 'detach'})
+            // }
         } else {
             // 如果侧边栏已存在，更新位置和大小
             this.sidebarPopup.setBounds(_bounds)

@@ -512,7 +512,7 @@ class TabManager {
         const contents = view.webContents
         this._setupEventListeners(contents, tabId)
         contents.setUserAgent(contents.getUserAgent() + ' JYIAIBrowser')
-        contents.openDevTools({ mode: 'detach' })
+        // contents.openDevTools({ mode: 'detach' })
         // 先移除其他标签页的显示
         for (const [id, v] of this.tabs) {
             if (id !== tabId) {

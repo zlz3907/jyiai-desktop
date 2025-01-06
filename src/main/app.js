@@ -165,10 +165,10 @@ class Application {
       this.tabManager.updateActiveViewBounds()
     })
 
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Opening DevTools in development mode')
-      this.topView.webContents.openDevTools({ mode: 'detach' })
-    }
+    // if (process.env.NODE_ENV === 'development') {
+    //   console.log('Opening DevTools in development mode')
+    //   this.topView.webContents.openDevTools({ mode: 'detach' })
+    // }
   }
 
   start() {
