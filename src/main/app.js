@@ -5,7 +5,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import { readFileSync } from 'fs'
 import { getConfigLoader, getSystemConfig } from './config/index.js'
-// import { BrowserWindowManager } from './windows/browser.js'
+import { createApplicationMenu } from './config/menu.js'
 import TabManager from './windows/tabs/TabManager.js'
 import { setupIPC } from '../ipc/index.js'
 
@@ -155,6 +155,9 @@ class Application {
       setupIPC(this.tabManager)
       this.ipcInitialized = true
     }
+
+    // 创建应用菜单 - 移到这里，确保 tabManager 已经初始化
+    createApplicationMenu(this.mainWindow, this.tabManager)
 
     // 监听窗口大小改变
     this.mainWindow.on('resize', () => {
