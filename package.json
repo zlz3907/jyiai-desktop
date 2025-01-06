@@ -1,7 +1,7 @@
 {
   "name": "jyiai-desktop",
   "productName": "简易AI",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "description": "基于大语言模型的智能AI助手（AIMetaa）",
   "main": "src/main/app.js",
   "author": {
@@ -26,6 +26,7 @@
     "start": "cross-env NODE_ENV=development electron .",
     "build": "cross-env NODE_ENV=production electron-builder --publish never",
     "dev": "cross-env NODE_ENV=development electron .",
+    "dev:tools": "cross-env NODE_ENV=development electron . --dev-tools",
     "publish": "electron-builder -p always",
     "release": "cross-env NODE_ENV=production electron-builder --mac -p always --config.mac.notarize=true",
     "build:mac": "cross-env NODE_ENV=production electron-builder --mac --config.mac.notarize=false",
