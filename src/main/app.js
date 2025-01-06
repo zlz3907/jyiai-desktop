@@ -3,7 +3,7 @@ import pkg from 'electron-updater'
 const { autoUpdater } = pkg
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { readFileSync } from 'fs'
+import { readFile } from 'fs/promises'
 import { getConfigLoader, getSystemConfig } from './config/index.js'
 import { createApplicationMenu } from './config/menu.js'
 import TabManager from './windows/tabs/TabManager.js'
@@ -13,30 +13,38 @@ import { setupIPC } from '../ipc/index.js'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-// 读取 package.json
-const packageJson = JSON.parse(readFileSync(path.join(__dirname, '../../package.json'), 'utf8'))
+// 初始化应用
+async function initialize() {
+  try {
+    // 读取 package.json
+    const packageJson = JSON.parse(
+      await readFile(path.join(__dirname, '../../package.json'), 'utf8')
+    )
 
-// 初始化应用名称
-app.name = 'AIMetar'
-app.setName('AIMetar')
+    // 初始化应用名称
+    app.name = 'AIMetar'
+    app.setName('AIMetar')
 
-// 修改版本信息的获取方式
-const APP_VERSION = packageJson.version;
-const BUILD_NUMBER = '1';
+    // 修改版本信息的获取方式
+    const APP_VERSION = packageJson.version
+    const BUILD_NUMBER = '1'
 
-// 启动应用
-getConfigLoader({
-  env: process.env.NODE_ENV,
-  configApiUrl: process.env.CONFIG_API_URL
-})
-.then(() => {
-  const application = new Application()
-  application.start()
-})
-.catch(error => {
-  console.error('Failed to initialize config:', error)
-  app.quit()
-})
+    // 启动应用
+    await getConfigLoader({
+      env: process.env.NODE_ENV,
+      configApiUrl: process.env.CONFIG_API_URL
+    })
+
+    const application = new Application()
+    await application.start()
+  } catch (error) {
+    console.error('Failed to initialize app:', error)
+    app.quit()
+  }
+}
+
+// 运行初始化
+initialize()
 
 class Application {
   constructor() {
@@ -44,8 +52,8 @@ class Application {
     this.tabManager = null
     this.ipcInitialized = false
     // this.browserWindowManager = new BrowserWindowManager()
-    // 初始化系统配置
-    this.systemConfig = getSystemConfig()
+    // 延迟加载非必要配置
+    this.systemConfig = null
 
     // 禁用 FIDO 和蓝牙相关功能
     app.commandLine.appendSwitch('disable-features', 'WebAuthentication,WebUSB,WebBluetooth')
@@ -83,8 +91,11 @@ class Application {
     }
   }
 
-  createMainWindow() {
+  async createMainWindow() {
     console.log(`process.platform: ${process.platform}`)
+    
+    // 按需加载配置
+    this.systemConfig = await getSystemConfig()
     
     // 获取窗口尺寸，确保是数字
     const _boundsConfig = this.systemConfig.get('bounds')
@@ -171,10 +182,16 @@ class Application {
     // }
   }
 
-  start() {
-    app.whenReady().then(() => {
-      this.createMainWindow()
-    })
+  async start() {
+    await app.whenReady()
+    
+    // 创建主窗口
+    await this.createMainWindow()
+    
+    // 延迟初始化非核心功能
+    setTimeout(() => {
+      this.initializeOptionalFeatures()
+    }, 1000)
 
     app.on('activate', () => {
       if (BaseWindow.getAllWindows().length === 0) {
@@ -187,6 +204,22 @@ class Application {
         app.quit()
       }
     })
+  }
+
+  async initializeOptionalFeatures() {
+    // 初始化自动更新
+    if (app.isPackaged) {
+      await this.setupAutoUpdater()
+    }
+    
+    // 初始化其他非核心功能
+    this.setupExtendedFeatures()
+  }
+
+  setupExtendedFeatures() {
+    // 这里可以添加其他非核心功能的初始化
+    // 例如：性能监控、崩溃报告等
+    console.log('Initializing extended features...')
   }
 
   setupAutoUpdater() {

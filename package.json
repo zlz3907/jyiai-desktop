@@ -100,7 +100,6 @@
       "LICENSE",
       "README.md",
       "imgs/**/*",
-      "**/*",
       ".jyiai/*"
     ],
     "protocols": {
@@ -117,6 +116,17 @@
           "**/*"
         ]
       }
+    ],
+    "electronBuilder": {
+      "buildDependenciesFromSource": true,
+      "nodeGypRebuild": false,
+      "mksnapshot": {
+        "enable": true
+      }
+    },
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/xlsx/**/*"
     ]
   },
   "devDependencies": {

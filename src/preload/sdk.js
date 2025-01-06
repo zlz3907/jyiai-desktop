@@ -3,10 +3,16 @@ const { contextBridge, ipcRenderer } = require('electron')
 // 定义SDK版本
 const SDK_VERSION = '1.0.0'
 
+// 按需加载模块
+const loadExcel = () => {
+    return require('xlsx')
+}
+
 // Excel 功能
 const excel = {
     readFile: (file) => {
-        console.log('readFile', file)
+        const XLSX = loadExcel()
+        return XLSX.readFile(file)
     },
 }
 
