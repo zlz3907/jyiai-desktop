@@ -38,6 +38,12 @@
     "appId": "com.zhycit.jyiai",
     "productName": "AIMetar",
     "afterSign": "build/after-sign.cjs",
+    "buildDependenciesFromSource": true,
+    "nodeGypRebuild": false,
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/xlsx/**/*"
+    ],
     "mac": {
       "category": "public.app-category.productivity",
       "target": [
@@ -116,17 +122,6 @@
           "**/*"
         ]
       }
-    ],
-    "electronBuilder": {
-      "buildDependenciesFromSource": true,
-      "nodeGypRebuild": false,
-      "mksnapshot": {
-        "enable": true
-      }
-    },
-    "asar": true,
-    "asarUnpack": [
-      "node_modules/xlsx/**/*"
     ]
   },
   "devDependencies": {
