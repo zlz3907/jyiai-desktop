@@ -1,7 +1,7 @@
 {
   "name": "jyiai-desktop",
   "productName": "简易AI",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "description": "基于大语言模型的智能AI助手（AIMetaa）",
   "main": "src/main/app.js",
   "author": {
@@ -25,8 +25,7 @@
   "scripts": {
     "start": "cross-env NODE_ENV=development electron .",
     "build": "cross-env NODE_ENV=production electron-builder --publish never",
-    "dev": "cross-env NODE_ENV=development electron .",
-    "dev:tools": "cross-env NODE_ENV=development electron . --dev-tools",
+    "dev": "cross-env NODE_ENV=development electron . --dev-tools",
     "publish": "electron-builder -p always",
     "release": "cross-env NODE_ENV=production electron-builder --mac -p always --config.mac.notarize=true",
     "build:mac": "cross-env NODE_ENV=production electron-builder --mac --config.mac.notarize=false",
@@ -65,7 +64,7 @@
       "entitlements": "build/entitlements.mas.plist",
       "entitlementsInherit": "build/entitlements.mas.inherit.plist",
       "helperBundleId": "com.zhycit.jyiai.helper",
-      "provisioningProfile": "build/jyiai-mac.provisionprofile",
+      "provisioningProfile": "build/jyiai-maconly.provisionprofile",
       "icon": "imgs/icon.icns",
       "identity": "Beijing zhong he yuan chuang information technology co. LTD (32CZ837ZAV)",
       "extendInfo": {
