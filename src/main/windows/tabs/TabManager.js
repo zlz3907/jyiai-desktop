@@ -101,7 +101,7 @@ class TabManager {
 
         try {
             // 创建和配置 session
-            const customSession = SessionManager.createSession(options.useProxy)
+            const customSession = SessionManager.createSession(url,options)
             if (options.useProxy) {
                 ProxyManager.configureProxy(customSession)
             }
@@ -142,12 +142,6 @@ class TabManager {
         // 设置事件监听和用户代理
         const contents = view.webContents
         this.eventHandler.setupEvents(contents, tabId)
-        contents.setUserAgent(contents.getUserAgent() + ' JYIAIBrowser')
-
-        // 开发环境下打开 DevTools
-        // if (process.env.NODE_ENV === 'development') {
-        //     view.webContents.openDevTools({ mode: 'detach' })
-        // }
 
         // 更新视图布局
         this._updateTabView(view, tabId, options?.isHome)
@@ -200,16 +194,18 @@ class TabManager {
     // 关闭标签页
     closeTab(tabId) {
         const view = this.tabs.get(tabId)
-        if (!view) return
+        if (view) {
+            // 从容器中移除
+            this.containerView.removeChildView(view)
+            
+            // 销毁视图
+            view.webContents.destroy()
+            
+            // 清理状态
+            this.tabs.delete(tabId)
+        }
 
-        // 从容器中移除
-        this.containerView.removeChildView(view)
         
-        // 销毁视图
-        view.webContents.destroy()
-        
-        // 清理状态
-        this.tabs.delete(tabId)
         this.stateManager.removeState(tabId)
 
         // 如果关闭的是当前活动标签，切换到其他标签
@@ -287,7 +283,6 @@ class TabManager {
 
     // 私有方法：创建标签页视图
     _createTabView(session, options) {
-        // console.log('createTabView:options', options)
         return new WebContentsView({
             webPreferences: {
                 nodeIntegration: false,
@@ -295,15 +290,34 @@ class TabManager {
                 session: session,
                 webSecurity: true,
                 allowRunningInsecureContent: false,
-                experimentalFeatures: false,
+                experimentalFeatures: true,
+                webgl: true,
+                canvas: true,
+                audio: true,
+                video: true,
+                webaudio: true,
+                backgroundThrottling: true,
+                enableBlinkFeatures: 'OverlayScrollbars',
+                enableWebSQL: true,
+                v8CacheOptions: 'code',
+                permissions: {
+                    webCapturer: true,
+                    media: true,
+                    geolocation: true,
+                    notifications: true,
+                    midi: true,
+                    pointerLock: true,
+                    fullscreen: true,
+                    clipboard: true,
+                    payment: true
+                },
                 allowFileAccessFromFiles: true,
                 webviewTag: true,
                 plugins: true,
                 javascript: true,
                 images: true,
-                webgl: true,
                 accelerator: true,
-                spellcheck: false,
+                spellcheck: true,
                 partition: `persist:tab_${options.useProxy ? 'proxy' : 'default'}`,
                 ...((options.navigate || options.isHome || options.isApp) ? {
                     preload: PRELOAD_SCRIPT_PATH
@@ -464,7 +478,7 @@ class TabManager {
                 menuWidth: 300
             }
         }
-        
+        // console.log('updateTabsMenu', menuData)
         this.menuPopup.webContents.send('init-menu-data', menuData)
     }
 

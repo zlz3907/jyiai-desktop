@@ -4,48 +4,74 @@ import { getSystemConfig } from '../../config/index.js'
 import ProxyManager from './ProxyManager.js'
 
 class TabEventHandler {
-    constructor(tabStateManager) {
-        this.stateManager = tabStateManager
+    constructor(stateManager) {
+        this.stateManager = stateManager
         this.systemConfig = getSystemConfig()
+        // 存储每个标签页的事件清理函数
+        this.cleanupHandlers = new Map()
     }
 
     setupEvents(contents, tabId) {
+        // 清理之前的事件监听器
+        if (this.cleanupHandlers.has(tabId)) {
+            this.cleanupHandlers.get(tabId)()
+            this.cleanupHandlers.delete(tabId)
+        }
+
+        // 收集需要清理的事件处理函数
+        const cleanupFunctions = []
+
         this._setupNavigationEvents(contents, tabId)
         this._setupLoadingEvents(contents, tabId)
         this._setupErrorEvents(contents, tabId)
         this._setupMemoryMonitoring(contents, tabId)
         this._setupNewWindowHandler(contents, tabId)
         this._setupFaviconHandler(contents, tabId)
+
+        // 当标签页销毁时清理事件监听器
+        contents.once('destroyed', () => {
+            if (this.cleanupHandlers.has(tabId)) {
+                this.cleanupHandlers.get(tabId)()
+                this.cleanupHandlers.delete(tabId)
+            }
+        })
     }
 
     _setupNavigationEvents(contents, tabId) {
-        // 页面标题更新
-        contents.on('page-title-updated', (event, title) => {
-            this.stateManager.updateState(tabId, { title }, MessageType.TAB_TITLE_UPDATED)
-        })
-
-        // 导航完成，获取完整信息
-        contents.on('did-finish-load', () => {
-            this._updatePageInfo(contents, tabId)
-        })
-
-        // 监听页面内导航
-        contents.on('did-navigate-in-page', (event, url, isMainFrame) => {
-            if (isMainFrame) {
-                this.stateManager.updateState(tabId, { 
+        const handlers = {
+            'page-title-updated': (event, title) => {
+                this.stateManager.updateState(tabId, { title }, MessageType.TAB_TITLE_UPDATED)
+            },
+            'did-finish-load': () => {
+                this._updatePageInfo(contents, tabId)
+            },
+            'did-navigate-in-page': (event, url, isMainFrame) => {
+                if (isMainFrame) {
+                    this.stateManager.updateState(tabId, { 
+                        url,
+                        loading: true
+                    })
+                }
+            },
+            'did-navigate': (event, url, httpResponseCode, httpStatusText) => {
+                this.stateManager.updateState(tabId, {
                     url,
-                    loading: true  // 标记为加载中
-                })
+                    httpStatus: { code: httpResponseCode, text: httpStatusText }
+                }, MessageType.TAB_URL_UPDATED)
             }
+        }
+
+        // 注册事件处理函数
+        Object.entries(handlers).forEach(([event, handler]) => {
+            contents.on(event, handler)
         })
 
-        // URL 更新
-        contents.on('did-navigate', (event, url, httpResponseCode, httpStatusText) => {
-            this.stateManager.updateState(tabId, {
-                url,
-                httpStatus: { code: httpResponseCode, text: httpStatusText }
-            }, MessageType.TAB_URL_UPDATED)
-        })
+        // 返回清理函数
+        return () => {
+            Object.entries(handlers).forEach(([event, handler]) => {
+                contents.removeListener(event, handler)
+            })
+        }
     }
 
     _setupLoadingEvents(contents, tabId) {
