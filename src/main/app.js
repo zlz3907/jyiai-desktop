@@ -1,4 +1,4 @@
-import { app, BaseWindow, ipcMain, Menu, WebContentsView } from 'electron'
+import { app, BaseWindow, ipcMain, Menu, WebContentsView, dialog } from 'electron'
 import pkg from 'electron-updater'
 const { autoUpdater } = pkg
 import path from 'path'
@@ -8,35 +8,36 @@ import { getConfigLoader, getSystemConfig } from './config/index.js'
 import { createApplicationMenu } from './config/menu.js'
 import TabManager from './windows/tabs/TabManager.js'
 import { setupIPC } from '../ipc/index.js'
+import store from './utils/store.js'
 
 // 获取 __dirname 等价物
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 // 初始化应用
-async function initialize() {
+function initialize() {
   try {
     // 读取 package.json
-    const packageJson = JSON.parse(
-      await readFile(path.join(__dirname, '../../package.json'), 'utf8')
-    )
+    readFile(path.join(__dirname, '../../package.json'), 'utf8').then((data) => {
+      const packageJson = JSON.parse(data)
 
-    // 初始化应用名称
-    app.name = 'AIMetar'
-    app.setName('AIMetar')
+      // 初始化应用名称
+      app.name = 'AIMetar'
+      app.setName('AIMetar')
 
-    // 修改版本信息的获取方式
-    const APP_VERSION = packageJson.version
-    const BUILD_NUMBER = '1'
+      // 修改版本信息的获取方式
+      const APP_VERSION = packageJson.version
+      const BUILD_NUMBER = '1'
 
-    // 启动应用
-    await getConfigLoader({
-      env: process.env.NODE_ENV,
-      configApiUrl: process.env.CONFIG_API_URL
+      // 启动应用
+      getConfigLoader({
+        env: process.env.NODE_ENV,
+        configApiUrl: process.env.CONFIG_API_URL
+      }).then(() => {
+        const application = new Application()
+        application.start()
+      })
     })
-
-    const application = new Application()
-    await application.start()
   } catch (error) {
     console.error('Failed to initialize app:', error)
     app.quit()
@@ -51,19 +52,17 @@ class Application {
     this.mainWindow = null
     this.tabManager = null
     this.ipcInitialized = false
-    // this.browserWindowManager = new BrowserWindowManager()
-    // 延迟加载非必要配置
     this.systemConfig = null
+    this.isQuitting = false
 
     // 禁用 FIDO 和蓝牙相关功能
     app.commandLine.appendSwitch('disable-features', 'WebAuthentication,WebUSB,WebBluetooth')
 
     // 配置自动更新
-    if (app.isPackaged) {  // 只在打包环境下启用自动更新
-      autoUpdater.logger = console  // 添加日志输出
+    if (app.isPackaged) {
+      autoUpdater.logger = console
       autoUpdater.autoDownload = false
-      
-      // 添加更新事件处理
+
       autoUpdater.on('error', (error) => {
         console.error('Update error:', error)
       })
@@ -80,7 +79,6 @@ class Application {
         console.log('Update not available:', info)
       })
 
-      // 检查更新
       try {
         autoUpdater.checkForUpdatesAndNotify().catch(error => {
           console.warn('Auto update check failed:', error)
@@ -91,16 +89,43 @@ class Application {
     }
   }
 
-  async createMainWindow() {
+  start() {
+    app.whenReady().then(() => {
+      this.createMainWindow()
+
+      app.on('activate', () => {
+        if (BaseWindow.getAllWindows().length === 0) {
+          this.createMainWindow()
+        } else {
+          if (this.mainWindow.isMinimized()) {
+            this.mainWindow.restore()
+          } else if (!this.mainWindow.isVisible()) {
+            this.mainWindow.show()
+          }
+          this.mainWindow.focus()
+        }
+      })
+
+      app.on('window-all-closed', () => {
+        if (process.platform !== 'darwin') {
+          app.quit()
+        }
+      })
+
+      // 在用户通过系统菜单退出时设置 isQuitting 标志
+      app.on('before-quit', async () => {
+        this.isQuitting = true
+      })
+    })
+  }
+  
+  createMainWindow() {
     console.log(`process.platform: ${process.platform}`)
     
-    // 按需加载配置
-    this.systemConfig = await getSystemConfig()
-    
-    // 获取窗口尺寸，确保是数字
+    this.systemConfig = getSystemConfig()
+
     const _boundsConfig = this.systemConfig.get('bounds')
-    
-    // 使用 BaseWindow 创建主窗口
+
     this.mainWindow = new BaseWindow({
       width: _boundsConfig?.mainWindow?.width,
       height: _boundsConfig?.mainWindow?.height,
@@ -111,8 +136,6 @@ class Application {
       ...(process.platform !== 'darwin' ? {
         titleBarStyle: 'hidden',
         titleBarOverlay: {
-          // color: '#2f3241',
-          // symbolColor: '#74b1be',
           height: 32
         }
       } : {
@@ -130,7 +153,6 @@ class Application {
     this.mainWindow.setAutoHideMenuBar(true)
     this.mainWindow.setMenu(null)
 
-    // 创建顶部视图（工具栏和标签栏）
     this.topView = new WebContentsView({
       webPreferences: {
         nodeIntegration: false,
@@ -140,10 +162,8 @@ class Application {
       }
     })
 
-    // 将顶部视图添加到主窗口
     this.mainWindow.contentView.addChildView(this.topView)
 
-    // 设置顶部视图的位置和大小
     const bounds = this.mainWindow.getBounds()
 
     this.topView.setBounds({
@@ -153,90 +173,82 @@ class Application {
       height: _boundsConfig?.topView?.height
     })
 
-    // 加载默认页面
     const baseUrl = this.systemConfig.get('baseUrl')
     this.topView.webContents.loadURL(`${baseUrl}/desktop`)
-    // this.topView.webContents.openDevTools({ mode: 'detach' })
 
-    // 初始化标签管理器
     this.tabManager = new TabManager(this.mainWindow, this.topView)
     
-    // 设置IPC处理程序
     if (!this.ipcInitialized) {
       setupIPC(this.tabManager)
       this.ipcInitialized = true
     }
 
-    // 创建应用菜单 - 移到这里，确保 tabManager 已经初始化
     createApplicationMenu(this.mainWindow, this.tabManager)
 
-    // 监听窗口大小改变
     this.mainWindow.on('resize', () => {
-      // 更新当前活动标签的大小
       this.tabManager.updateActiveViewBounds()
     })
 
-    // if (process.env.NODE_ENV === 'development') {
-    //   console.log('Opening DevTools in development mode')
-    //   this.topView.webContents.openDevTools({ mode: 'detach' })
-    // }
-  }
-
-  async start() {
-    await app.whenReady()
-    
-    // 创建主窗口
-    await this.createMainWindow()
-    
-    // 延迟初始化非核心功能
-    setTimeout(() => {
-      this.initializeOptionalFeatures()
-    }, 1000)
-
-    app.on('activate', () => {
-      if (BaseWindow.getAllWindows().length === 0) {
-        this.createMainWindow()
+    this.mainWindow.on('close', async (event) => {
+      if (this.isQuitting) {
+        return;
       }
-    })
 
-    app.on('window-all-closed', () => {
-      if (process.platform !== 'darwin') {
-        app.quit()
+      event.preventDefault();
+      let choice = store.getItem('dontAskOnClose');
+      if (isNaN(choice)) {
+        const { response, checkboxChecked } = await dialog.showMessageBox(this.mainWindow, {
+          type: 'question',
+          buttons: ['最小化', '取消', '退出'],
+          title: '确认',
+          message: '您想要退出应用程序还是最小化窗口？',
+          cancelId: 1,
+          checkboxLabel: '不再提示',
+          checkboxChecked: false
+        });
+        choice = response;
+        if (checkboxChecked && response !== 1) {
+          store.setItem('dontAskOnClose', response);
+        }
       }
-    })
+
+      switch (choice) {
+        case 0:
+          this.mainWindow.minimize();
+          break;
+        case 2:
+          this.isQuitting = true;
+          app.quit();
+          break;
+      }
+      
+    });
   }
 
   async initializeOptionalFeatures() {
-    // 初始化自动更新
     if (app.isPackaged) {
       await this.setupAutoUpdater()
     }
     
-    // 初始化其他非核心功能
     this.setupExtendedFeatures()
   }
 
   setupExtendedFeatures() {
-    // 这里可以添加其他非核心功能的初始化
-    // 例如：性能监控、崩溃报告等
     console.log('Initializing extended features...')
   }
 
   setupAutoUpdater() {
-    // 配置更新服务器
     autoUpdater.setFeedURL({
       provider: 'github',
       owner: 'zhycit',
       repo: 'jyiai-desktop',
       private: true,
-      token: process.env.GH_TOKEN  // 从环境变量获取 GitHub token
+      token: process.env.GH_TOKEN
     })
 
-    // 配置自动更新行为
     autoUpdater.autoDownload = false
-    autoUpdater.logger = console  // 添加日志输出
+    autoUpdater.logger = console
 
-    // 添加更新事件处理
     autoUpdater.on('error', (error) => {
       console.error('Update error:', error)
     })
@@ -253,7 +265,6 @@ class Application {
       console.log('Update not available:', info)
     })
 
-    // 检查更新
     try {
       autoUpdater.checkForUpdatesAndNotify().catch(error => {
         console.warn('Auto update check failed:', error)

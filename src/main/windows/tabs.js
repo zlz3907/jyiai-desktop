@@ -187,7 +187,7 @@ class TabManager {
 
         // 设置代理配置
         session.setProxy(proxySettings).then(() => {
-            console.log('Proxy configured successfully')
+            // console.log('Proxy configured successfully')
         }).catch(err => {
             console.error('Failed to set proxy:', err)
         })

@@ -2,18 +2,18 @@ import { ipcMain } from 'electron'
 import store from '../main/utils/store.js'
 
 export function setupStoreHandlers() {
-    ipcMain.handle('store:set', async (event, key, value) => {
+    ipcMain.handle('store:set', (event, key, value) => {
         store.setItem(key, value)
     })
-    ipcMain.handle('store:get', async (event, key) => {
+    ipcMain.handle('store:get', (event, key) => {
         return store.getItem(key)
     })
 
-    ipcMain.handle('store:remove', async (event, key) => {
+    ipcMain.handle('store:remove', (event, key) => {
         store.removeItem(key)
     })
 
-    ipcMain.handle('store:clear', async () => {
+    ipcMain.handle('store:clear', () => {
         store.clear()
     })
 } 

@@ -44,8 +44,17 @@ export function createApplicationMenu(mainWindow, tabManager) {
                     }
                 },
                 { type: 'separator' },
-                { role: 'minimize', label: '最小化' },
-                { role: 'zoom', label: '最大化' },
+                { 
+                    label: '隐藏/显示窗口',
+                    click: () => {
+                        if (mainWindow.isVisible()) {
+                            mainWindow.hide()
+                        } else {
+                            mainWindow.show()
+                        }
+                    }
+                },
+                { role: 'zoom', label: '最大化/还原' },
                 { type: 'separator' },
                 { role: 'quit', label: '退出' }
             ]
