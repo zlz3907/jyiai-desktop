@@ -1,0 +1,15 @@
+{
+  "edit": "Edit",
+  "undo": "Undo",
+  "redo": "Redo",
+  "cut": "Cut",
+  "copy": "Copy",
+  "paste": "Paste",
+  "selectAll": "Select All",
+  "about": "About",
+  "clearCache": "Clear Cache",
+  "toggleWindow": "Toggle Window",
+  "zoom": "Zoom",
+  "quit": "Quit",
+  "language": "Language"
+}

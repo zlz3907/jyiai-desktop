@@ -1,28 +1,75 @@
 import { app, Menu, shell, session } from 'electron'
-import { getSystemConfig } from './index.js'
+// import i18n from '../../locales/i18n.js'
 
-export function createApplicationMenu(mainWindow, tabManager) {
+// 其他代码...
+
+export function createApplicationMenu(mainWindow, tabManager, i18n) {
+
     const isDebug = process.argv.includes('--dev-tools')
     const isMac = process.platform === 'darwin'
-    
-    // 如果不是 macOS，不显示菜单
+    Menu.setApplicationMenu(null)
     if (!isMac) {
-        Menu.setApplicationMenu(null)
         return
     }
 
+
+
+    if (!i18n) {
+        console.error('i18n is not initialized')
+        return
+    } 
+
+    const languageMenu = {
+        label: i18n.t('menu:language'),
+        submenu: [
+            {
+                label: 'English',
+                type: 'radio',
+                checked: i18n.language === 'en',
+                click: () => {
+                    i18n.changeLanguage('en', () => {
+                        createApplicationMenu(mainWindow, tabManager, i18n)
+                    })
+                }
+            },
+            {
+                label: '中文',
+                type: 'radio',
+                checked: i18n.language === 'zh',
+                click: () => {
+                    i18n.changeLanguage('zh', () => {
+                        createApplicationMenu(mainWindow, tabManager, i18n)
+                    })
+                }
+            }
+        ]
+    }
+
+    const editMenu = {
+        // i18n.setName
+        label: i18n.t('menu:edit'),
+        submenu: [
+            { role: 'undo', label: i18n.t('menu:undo') },
+            { role: 'redo', label: i18n.t('menu:redo') },
+            { type: 'separator' },
+            { role: 'cut', label: i18n.t('menu:cut') },
+            { role: 'copy', label: i18n.t('menu:copy') },
+            { role: 'paste', label: i18n.t('menu:paste') },
+            { role: 'selectAll', label: i18n.t('menu:selectAll') }
+        ]
+    }
+
     const template = [
-        // macOS 主菜单
         {
             label: app.name,
             submenu: [
-                { role: 'about', label: '关于简易AI-智能麦塔' },
+                { role: 'about', label: i18n.t('menu:about') + app.name },
+                languageMenu,
                 { type: 'separator' },
                 { 
-                    label: '清除缓存',
+                    label: i18n.t('menu:clearCache'),
                     click: async () => {
                         try {
-                            // 清除所有 session 的缓存
                             const sessions = [
                                 session.defaultSession,
                                 session.fromPartition('persist:tab_proxy'),
@@ -33,7 +80,6 @@ export function createApplicationMenu(mainWindow, tabManager) {
                                 session.clearCache()
                             ))
                             
-                            // 清除后重载当前页面
                             const activeTab = tabManager?.tabs.get(tabManager.activeTabId)
                             if (activeTab) {
                                 activeTab.webContents.reload()
@@ -45,7 +91,7 @@ export function createApplicationMenu(mainWindow, tabManager) {
                 },
                 { type: 'separator' },
                 { 
-                    label: '隐藏/显示窗口',
+                    label: i18n.t('menu:toggleWindow'),
                     click: () => {
                         if (mainWindow.isVisible()) {
                             mainWindow.hide()
@@ -54,13 +100,12 @@ export function createApplicationMenu(mainWindow, tabManager) {
                         }
                     }
                 },
-                { role: 'zoom', label: '最大化/还原' },
+                { role: 'zoom', label: i18n.t('menu:zoom') },
                 { type: 'separator' },
-                { role: 'quit', label: '退出' }
+                { role: 'quit', label: i18n.t('menu:quit') }
             ]
         },
-
-        // Debug菜单（仅在debug模式下显示）
+        editMenu,
         ...(isDebug ? [{
             label: '调试',
             submenu: [
@@ -103,4 +148,6 @@ export function createApplicationMenu(mainWindow, tabManager) {
 
     const menu = Menu.buildFromTemplate(template)
     Menu.setApplicationMenu(menu)
+
+    return menu
 } 

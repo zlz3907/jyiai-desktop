@@ -9,6 +9,8 @@ import { createApplicationMenu } from './config/menu.js'
 import TabManager from './windows/tabs/TabManager.js'
 import { setupIPC } from '../ipc/index.js'
 import store from './utils/store.js'
+import I18nConfiguration from '../locales/i18n.js'
+import { createContextMenu } from './config/contextMenu.js'
 
 // 获取 __dirname 等价物
 const __filename = fileURLToPath(import.meta.url)
@@ -22,20 +24,26 @@ function initialize() {
       const packageJson = JSON.parse(data)
 
       // 初始化应用名称
-      app.name = 'AIMetar'
-      app.setName('AIMetar')
-
-      // 修改版本信息的获取方式
-      const APP_VERSION = packageJson.version
-      const BUILD_NUMBER = '1'
-
+      
       // 启动应用
       getConfigLoader({
         env: process.env.NODE_ENV,
         configApiUrl: process.env.CONFIG_API_URL
       }).then(() => {
-        const application = new Application()
-        application.start()
+        // 修改版本信息的获取方式
+        // const APP_VERSION = packageJson.version
+        // const BUILD_NUMBER = '1'
+
+        I18nConfiguration.init((i18next) => {
+          // console.log('i18next initialized successfully', i18next)
+          console.log('i18n is initialized 1')
+          app.name = i18next.t('app:name')
+          app.setName(i18next.t('app:name'))
+  
+          const application = new Application()
+          application.i18n = i18next
+          application.start()
+        })
       })
     })
   } catch (error) {
@@ -54,7 +62,7 @@ class Application {
     this.ipcInitialized = false
     this.systemConfig = null
     this.isQuitting = false
-
+    this.i18n = null
     // 禁用 FIDO 和蓝牙相关功能
     app.commandLine.appendSwitch('disable-features', 'WebAuthentication,WebUSB,WebBluetooth')
 
@@ -91,8 +99,15 @@ class Application {
 
   start() {
     app.whenReady().then(() => {
+      console.log('current locale:', app.getLocale() , app.getSystemLocale())    
       this.createMainWindow()
 
+      // 调用 createApplicationMenu 来设置菜单
+      createApplicationMenu(this.mainWindow, this.tabManager, this.i18n)
+      const contextMenu = createContextMenu(this.i18n)
+      this.tabManager.rightClickMenu = contextMenu
+      
+ 
       app.on('activate', () => {
         if (BaseWindow.getAllWindows().length === 0) {
           this.createMainWindow()
@@ -183,8 +198,6 @@ class Application {
       this.ipcInitialized = true
     }
 
-    createApplicationMenu(this.mainWindow, this.tabManager)
-
     this.mainWindow.on('resize', () => {
       this.tabManager.updateActiveViewBounds()
     })
@@ -222,7 +235,8 @@ class Application {
           break;
       }
       
-    });
+    })
+
   }
 
   async initializeOptionalFeatures() {
