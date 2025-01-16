@@ -30,7 +30,8 @@ class TabManager {
 
         // 初始化各个管理器
         this.stateManager = new TabStateManager(topView)
-        this.eventHandler = new TabEventHandler(this.stateManager, this.systemConfig)
+        this.eventHandler = new TabEventHandler(this.stateManager, this.systemConfig),
+        this.rightClickMenu = null
     }
 
     /**
@@ -43,7 +44,7 @@ class TabManager {
             const userSession = store.getItem('session.user')
             if (!userSession) {
                 console.warn('未找到用户会话，需要登录')
-                return '/desktop/auth?backUrl=/desktop/vip-upgrade&nobreadcrumb=true'
+                return '/desktop/auth?backUrl=/desktop/links&nobreadcrumb=true'
             }
 
             const { balance } = (typeof userSession === 'string' 
@@ -150,6 +151,12 @@ class TabManager {
         this._loadTabContent(contents, validUrl, tabId)
 
         // console.log('createTab', this.tabs)
+        if (this.rightClickMenu) {
+            contents.on('context-menu', (event) => {
+                event.preventDefault()
+                this.rightClickMenu.popup({ window: view })
+            })
+        }
     }
 
     /**
