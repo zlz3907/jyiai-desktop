@@ -21,16 +21,25 @@ const CONTENT_SECURITY_POLICY = [
 
 class SessionManager {
     // 特殊网站的配置
+    static DEFAULT_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36'
     static SPECIAL_SITES = {
         'whatsapp.com': {
             removeCSP: true,
-            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36',
+            userAgent: SessionManager.DEFAULT_USER_AGENT,
             headers: {
                 'Accept-Language': 'en-US,en;q=0.9',
                 'Sec-CH-UA': '"Not A(Brand";v="99", "Google Chrome";v="116", "Chromium";v="116"',
                 'Sec-CH-UA-Mobile': '?0',
                 'Sec-CH-UA-Platform': '"Windows"'
             }
+        },
+        'facebook.com': {
+            removeCSP: true,
+            userAgent: SessionManager.DEFAULT_USER_AGENT,
+        },
+        'meta.ai': {
+            removeCSP: true,
+            userAgent: SessionManager.DEFAULT_USER_AGENT,
         }
     }
 

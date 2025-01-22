@@ -129,8 +129,8 @@ export function createApplicationMenu(mainWindow, tabManager, i18n) {
                 {
                     label: 'Debug Sidebar',
                     click: () => {
-                        if (tabManager?.sidebarPopup) {
-                            tabManager.sidebarPopup.webContents.openDevTools({ mode: 'detach' })
+                        if (tabManager?.popupWindow) {
+                            tabManager.popupWindow.webContents.openDevTools({ mode: 'detach' })
                         }
                     }
                 },

@@ -16,47 +16,68 @@ const __dirname = path.dirname(__filename)
 const PRELOAD_SCRIPT_PATH = path.join(__dirname, '../../../preload/sdk.js')
 
 class TabManager {
+    /**
+     * 标签页管理器构造函数
+     * @param {BrowserWindow} mainWindow - 主窗口实例
+     * @param {WebContentsView} topView - 顶部工具栏视图
+     */
     constructor(mainWindow, topView) {
+        // 主窗口相关
         this.mainWindow = mainWindow
-        this.containerView = mainWindow.contentView
-        this.topView = topView
-        this.tabs = new Map()
-        this.activeTabId = null
-        this.toolbarHeight = 76
-        this.menuView = null
-        this.systemConfig = getSystemConfig()
-        this.menuPopup = null
-        this.sidebarPopup = null
-
+        this.containerView = mainWindow.contentView  // 主窗口内容视图
+        this.topView = topView  // 顶部工具栏视图
+        
+        // 标签页管理
+        this.tabs = new Map()  // 存储所有标签页，key为tabId，value为WebContentsView
+        this.activeTabId = null  // 当前活动标签页ID
+        this.toolbarHeight = 76  // 工具栏高度
+        
+        // UI相关
+        this.menuView = null  // 菜单视图
+        this.menuPopup = null  // 菜单弹出窗口
+        this.popupWindow = null  // 侧边栏弹出窗口
+        
+        // 配置
+        this.systemConfig = getSystemConfig()  // 获取系统配置
+        
         // 初始化各个管理器
-        this.stateManager = new TabStateManager(topView)
-        this.eventHandler = new TabEventHandler(this.stateManager, this.systemConfig),
-        this.rightClickMenu = null
+        this.stateManager = new TabStateManager(topView)  // 标签页状态管理
+        this.eventHandler = new TabEventHandler(this.stateManager, this.systemConfig)  // 事件处理
+        this.rightClickMenu = null  // 右键菜单
     }
 
     /**
      * 检查用户的代理权限
      * @private
      * @returns {string} 返回需要跳转的路径，空字符串表示有权限
+     * 
+     * 该方法检查用户是否具有使用代理的权限：
+     * 1. 检查用户是否登录
+     * 2. 检查用户是否有有效的代理订阅
+     * 3. 检查订阅是否在有效期内
      */
     _checkProxyPermission() {
         try {
+            // 获取用户会话信息
             const userSession = store.getItem('session.user')
             if (!userSession) {
                 console.warn('未找到用户会话，需要登录')
                 return '/desktop/auth?backUrl=/desktop/links&nobreadcrumb=true'
             }
 
+            // 解析用户余额信息
             const { balance } = (typeof userSession === 'string' 
                 ? JSON.parse(userSession) 
                 : userSession)
 
+            // 获取代理订阅到期时间
             const expiryTime = balance?.purchase?.vzone?.totalTimeQuantity
             if (!expiryTime) {
                 console.warn('未找到代理订阅，需要升级')
                 return '/desktop/vip-upgrade'
             }
 
+            // 检查订阅是否在有效期内
             return Date.now() < expiryTime ? '' : '/desktop/vip-upgrade'
         } catch (error) {
             console.warn('检查代理权限时出错:', error)
@@ -81,14 +102,22 @@ class TabManager {
 
     /**
      * 创建新标签页
-     * @param {string} url - 页面URL
+     * @param {string} url - 页面URL，默认为'about:blank'
      * @param {Object} options - 配置选项
      * @returns {string} 标签页ID
+     * 
+     * 主要流程：
+     * 1. 验证和处理URL
+     * 2. 检查代理权限（如果使用代理）
+     * 3. 创建自定义session
+     * 4. 配置代理（如果需要）
+     * 5. 创建标签页视图
+     * 6. 初始化标签页
      */
     createTab(url = 'about:blank', options = {}) {
         // URL 验证和处理
         const validUrl = this._validateUrl(url)
-        const tabId = options.tabId || Date.now().toString()
+        const tabId = options.tabId || Date.now().toString()  // 生成唯一tabId
 
         // 处理代理模式
         if (options.useProxy) {
@@ -104,7 +133,7 @@ class TabManager {
             // 创建和配置 session
             const customSession = SessionManager.createSession(url,options)
             if (options.useProxy) {
-                ProxyManager.configureProxy(customSession)
+                ProxyManager.configureProxy(customSession)  // 配置代理
             }
 
             // 创建和初始化标签页
@@ -125,19 +154,29 @@ class TabManager {
      * @param {string} tabId - 标签页ID
      * @param {string} validUrl - 验证后的URL
      * @param {Object} options - 配置选项
+     * 
+     * 初始化流程：
+     * 1. 将新标签页添加到tabs Map中
+     * 2. 更新当前活动标签页ID
+     * 3. 初始化标签页状态
+     * 4. 设置事件监听
+     * 5. 更新视图布局
+     * 6. 加载URL内容
+     * 7. 设置右键菜单（如果存在）
      */
     _initializeTab(view, tabId, validUrl, options) {
+        // 将新标签页添加到tabs Map中
         this.tabs.set(tabId, view)
-        this.activeTabId = tabId
+        this.activeTabId = tabId  // 更新当前活动标签页ID
             
         // 初始化标签状态
         this.stateManager.updateState(tabId, {
-            useProxy: options.useProxy || false,
-            url: options?.navigate ? 'about:blank' : validUrl,
-            title: options?.navigate ? 'about:blank' : 'New Tab',
-            navigate: options?.navigate,
-            isApp: options?.isApp || false,
-            isHome: options?.isHome || false
+            useProxy: options.useProxy || false,  // 是否使用代理
+            url: options?.navigate ? 'about:blank' : validUrl,  // 标签页URL
+            title: options?.navigate ? 'about:blank' : 'New Tab',  // 标签页标题
+            navigate: options?.navigate,  // 是否正在导航
+            isApp: options?.isApp || false,  // 是否是应用模式
+            isHome: options?.isHome || false  // 是否是主页
         }, MessageType.TAB_CREATED)
 
         // 设置事件监听和用户代理
@@ -150,7 +189,7 @@ class TabManager {
         // 加载URL
         this._loadTabContent(contents, validUrl, tabId)
 
-        // console.log('createTab', this.tabs)
+        // 设置右键菜单
         if (this.rightClickMenu) {
             contents.on('context-menu', (event) => {
                 event.preventDefault()
@@ -198,7 +237,17 @@ class TabManager {
         }
     }
 
-    // 关闭标签页
+    /**
+     * 关闭标签页
+     * @param {string} tabId - 要关闭的标签页ID
+     * 
+     * 关闭流程：
+     * 1. 从容器中移除视图
+     * 2. 销毁webContents
+     * 3. 从tabs Map中删除
+     * 4. 清理状态
+     * 5. 如果关闭的是活动标签页，切换到其他标签页
+     */
     closeTab(tabId) {
         const view = this.tabs.get(tabId)
         if (view) {
@@ -212,16 +261,17 @@ class TabManager {
             this.tabs.delete(tabId)
         }
 
-        
+        // 清理状态管理
         this.stateManager.removeState(tabId)
 
         // 如果关闭的是当前活动标签，切换到其他标签
         if (this.activeTabId === tabId) {
             const remainingTabs = Array.from(this.tabs.keys())
             if (remainingTabs.length > 0) {
+                // 切换到最后一个标签页
                 this.activateTab(remainingTabs[remainingTabs.length - 1])
             } else {
-                this.activeTabId = null
+                this.activeTabId = null  // 没有标签页时清空活动标签页ID
             }
         }
     }
@@ -247,7 +297,14 @@ class TabManager {
         view.webContents.focus()
     }
 
-    // 更新视图边界
+    /**
+     * 更新活动标签页的视图边界
+     * 
+     * 根据当前窗口大小和标签页状态调整视图边界：
+     * 1. 获取活动标签页
+     * 2. 计算视图边界
+     * 3. 调整标签页视图和顶部工具栏视图的大小和位置
+     */
     updateActiveViewBounds() {
         const activeTab = this.tabs.get(this.activeTabId)
         if (!activeTab) return
@@ -255,31 +312,33 @@ class TabManager {
         const view = this.tabs.get(this.activeTabId)
         if (!view) return
 
+        // 获取标签页状态
         const tabState = this.stateManager.getState(this.activeTabId)
-        const isHome = tabState?.isHome || tabState?.isApp || false
+        const isHome = tabState?.isHome || tabState?.isApp || false  // 是否是主页或应用模式
+        
+        // 获取容器边界
         const bounds = this.containerView.getBounds()
         const _boundsConfig = this.systemConfig.get('bounds')
+        
+        // 顶部工具栏边界配置
         const _topViewBounds = {
             height: _boundsConfig?.topView?.height || 76,
             minHeight: _boundsConfig?.topView?.minHeight || 32,
         }
 
-        // console.log('updateActiveViewBounds', {
-        //     bounds,
-        //     _topViewBounds,
-        //     isHome
-        // })
-
+        // 计算主页模式下的偏移量
         const homeOffset = _boundsConfig?.topView?.height 
             - _boundsConfig?.topView?.minHeight
 
+        // 设置标签页视图边界
         view.setBounds({
             x: 0,
             y: _topViewBounds.height - (isHome ? homeOffset - 2 : 0),
             width: bounds.width,
             height: bounds.height - _topViewBounds.height + (isHome ? homeOffset + 2 : 0)
         })
-        // const topBounds = this.topView.getBounds()
+
+        // 设置顶部工具栏边界
         this.topView.setBounds({
             x: 0,
             y: 0,
@@ -500,22 +559,26 @@ class TabManager {
         }
     }
 
-    createSidebar(sidebarUrl, options = {}) {
+    createPopupWindow(popupUrl, options = {}) {
         const {x, y, width, height} = this.mainWindow.getBounds()
         const _boundsConfig = this.systemConfig.get('bounds')
         const _topViewHeight = options.position || _boundsConfig?.topView?.height || 76
         
-        const sidebarWidth = options.width || 320 // 默认宽度
+        const popupWidth = options.width || 320 // 默认宽度
+        // const _x = isNaN(options.x) ? x + options.x : (x + width - sidebarWidth)
+        // const _y = isNaN(options.y) ? y + options.y : (y + _topViewHeight)
         
         const _bounds = {
-            width: sidebarWidth,
-            height: height - _topViewHeight,
-            x: x + width - sidebarWidth,
-            y: y + _topViewHeight
+            width: popupWidth,
+            height: options.height || height - _topViewHeight,
+            // x: x + width - sidebarWidth,
+            // y: y + _topViewHeight
+            x: !isNaN(options.x) ? x + options.x : (x + width - popupWidth),
+            y: !isNaN(options.y) ? y + options.y : (y + _topViewHeight)
         }
         // console.log('createSidebar', {x, y, width, height}, _boundsConfig, _bounds)
-        if (!this.sidebarPopup) {
-            this.sidebarPopup = new BrowserWindow({
+        if (!this.popupWindow) {
+            this.popupWindow = new BrowserWindow({
                 ..._bounds,
                 frame: false,
                 transparent: true,
@@ -536,14 +599,14 @@ class TabManager {
             })
 
             // 首次加载URL
-            this.sidebarPopup.loadURL(sidebarUrl)
+            this.popupWindow.loadURL(popupUrl)
 
             // 监听主窗口的resize事件来调整侧边栏大小
             this.mainWindow.on('resize', () => {
-                if (this.sidebarPopup && !this.sidebarPopup.isDestroyed()) {
+                if (this.popupWindow && !this.popupWindow.isDestroyed()) {
                     const newBounds = this.mainWindow.getBounds()
-                    const currentBounds = this.sidebarPopup.getBounds()
-                    this.sidebarPopup.setBounds({
+                    const currentBounds = this.popupWindow.getBounds()
+                    this.popupWindow.setBounds({
                         width: currentBounds.width,
                         height: newBounds.height - _topViewHeight,
                         x: newBounds.x + newBounds.width - currentBounds.width,
@@ -554,10 +617,10 @@ class TabManager {
 
             // 监听主窗口的移动事件
             this.mainWindow.on('move', () => {
-                if (this.sidebarPopup && !this.sidebarPopup.isDestroyed()) {
+                if (this.popupWindow && !this.popupWindow.isDestroyed()) {
                     const newBounds = this.mainWindow.getBounds()
-                    const currentBounds = this.sidebarPopup.getBounds()
-                    this.sidebarPopup.setBounds({
+                    const currentBounds = this.popupWindow.getBounds()
+                    this.popupWindow.setBounds({
                         width: currentBounds.width,
                         height: currentBounds.height,
                         x: newBounds.x + newBounds.width - currentBounds.width,
@@ -568,8 +631,8 @@ class TabManager {
 
             // 监听窗口失去焦点时自动隐藏（可选）
             if (options.autoHide) {
-                this.sidebarPopup.on('blur', () => {
-                    this.closeSidebar()
+                this.popupWindow.on('blur', () => {
+                    this.closePopupWindow()
                 })
             }
 
@@ -578,13 +641,13 @@ class TabManager {
             // }
         } else {
             // 如果侧边栏已存在，更新位置和大小
-            this.sidebarPopup.setBounds(_bounds)
-            if (sidebarUrl !== this.sidebarPopup.webContents.getURL()) {
-                this.sidebarPopup.loadURL(sidebarUrl)
+            this.popupWindow.setBounds(_bounds)
+            if (popupUrl !== this.popupWindow.webContents.getURL()) {
+                this.popupWindow.loadURL(popupUrl)
             }
         }
 
-        this.sidebarPopup.show()
+        this.popupWindow.show()
         // console.log('createSidebar', this.sidebarPopup)
         // 通知顶部视图侧边栏状态
         this.topView.webContents.send('ipc-msg', {
@@ -593,9 +656,9 @@ class TabManager {
         })
     }
 
-    closeSidebar() {
-        if (this.sidebarPopup) {
-            this.sidebarPopup.hide()
+    closePopupWindow() {
+        if (this.popupWindow) {
+            this.popupWindow.hide()
             this.topView.webContents.send('ipc-msg', {
                 type: MessageType.SIDEBAR_STATE, 
                 payload: { active: false }
@@ -604,4 +667,4 @@ class TabManager {
     }
 }
 
-export default TabManager 
+export default TabManager

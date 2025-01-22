@@ -106,8 +106,15 @@ contextBridge.exposeInMainWorld('jyiaiSDK', {
 
     // 侧边栏功能
     sidebar: {
-        show: (url, options = {}) => ipcRenderer.invoke('sidebar:show', { url, options }),
-        close: () => ipcRenderer.invoke('sidebar:close'),
-        resize: (width) => ipcRenderer.invoke('sidebar:resize', { width })
+        show: (url, options = {}) => ipcRenderer.invoke('popup:show', { url, options }),
+        close: () => ipcRenderer.invoke('popup:close'),
+        resize: (width) => ipcRenderer.invoke('popup:resize', { width })
+    },
+
+    // 弹出菜单
+    popup: {
+        show: (url, options = {}) => ipcRenderer.invoke('popup:show', { url, options }),
+        close: () => ipcRenderer.invoke('popup:close'),
+        resize: (width) => ipcRenderer.invoke('popup:resize', { width })
     }
 }) 
